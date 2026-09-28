@@ -33,6 +33,10 @@ export interface BanyaLayout {
   /** Пол внутри бани — чтобы понять, что игрок «дома». */
   readonly interior: Box;
   readonly signAnchor: THREE.Vector3;
+  /** Красная «лазерная» преграда поперёк входа: видна, пока баня закрыта на щеколду. */
+  readonly barrier: THREE.Mesh;
+  /** Стенка на месте преграды — не пускает внутрь, пока баня закрыта. */
+  readonly latchBox: Box;
 }
 
 /** Неподвижная часть мира и её важные точки. */
@@ -41,8 +45,6 @@ export interface World {
   readonly neighbors: readonly BanyaLayout[];
   /** Кнопка щеколды у входа в баню игрока. */
   readonly lockButton: THREE.Vector3;
-  /** Красная «лазерная» преграда поперёк входа, видна, пока баня закрыта. */
-  readonly lockBarrier: THREE.Mesh;
   readonly boxes: readonly Box[];
   readonly circles: readonly Circle[];
   /** Куда можно ходить. */
@@ -64,6 +66,7 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
   const circles: Circle[] = [];
   const shadows: { x: number; z: number; diameter: number }[] = [];
   const steam: SteamEmitter[] = [];
+  const barriers: THREE.Mesh[] = [];
 
   // --- земля ---
   const ground = new THREE.Mesh(
@@ -149,6 +152,17 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
       seats.push(new THREE.Vector3(x, BENCH.height, (BENCH.minZ + BENCH.maxZ) / 2));
       plates.push(new THREE.Vector3(x, 0.03, PLATE_Z));
     }
+
+    // щеколда: красный «лазер» поперёк открытой стороны
+    const barrier = new THREE.Mesh(
+      new THREE.PlaneGeometry(inner * 2, 1.4),
+      new THREE.MeshBasicMaterial({ color: '#ff4d6d', transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    barrier.position.set(cx, 0.7, BANYA.frontZ);
+    barrier.visible = false;
+    scene.add(barrier);
+    barriers.push(barrier);
+
     return {
       centerX: cx,
       seats,
@@ -156,6 +170,8 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
       entrance: new THREE.Vector3(cx, 0, BANYA.frontZ + 1),
       interior: { minX: cx - inner, maxX: cx + inner, minZ: BANYA.backZ + BANYA.wall / 2, maxZ: BANYA.frontZ },
       signAnchor: new THREE.Vector3(cx, BANYA.wallHeight + 0.6, BANYA.backZ),
+      barrier,
+      latchBox: { minX: cx - inner, maxX: cx + inner, minZ: BANYA.frontZ - 0.2, maxZ: BANYA.frontZ + 0.2 },
     };
   };
 
@@ -169,16 +185,8 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
 
   const home = buildBanya(0, '#ffffff');
   const neighbors = NEIGHBORS.map((n) => buildBanya(n.x, '#d8c9bd'));
-
-  // щеколда: кнопка слева от входа и «лазер» поперёк открытой стороны
+  // кнопка щеколды — слева от входа в баню игрока
   const lockButton = new THREE.Vector3(-BANYA.halfWidth + 1.2, 0.03, BANYA.frontZ + 1.4);
-  const lockBarrier = new THREE.Mesh(
-    new THREE.PlaneGeometry(BANYA.halfWidth * 2 - BANYA.wall, 1.4),
-    new THREE.MeshBasicMaterial({ color: '#ff4d6d', transparent: true, opacity: 0.35, depthWrite: false, side: THREE.DoubleSide }),
-  );
-  lockBarrier.position.set(0, 0.7, BANYA.frontZ);
-  lockBarrier.visible = false;
-  scene.add(lockBarrier);
 
   // --- лес вокруг ---
   const rng = new Rng(7);
@@ -208,13 +216,13 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
     home,
     neighbors,
     lockButton,
-    lockBarrier,
     boxes,
     circles,
     bounds: WORLD.bounds,
     update: (dt) => {
       for (const s of steam) s.update(dt);
-      if (lockBarrier.visible) (lockBarrier.material as THREE.MeshBasicMaterial).opacity = 0.28 + Math.sin(performance.now() / 150) * 0.08;
+      const opacity = 0.28 + Math.sin(performance.now() / 150) * 0.08;
+      for (const barrier of barriers) if (barrier.visible) (barrier.material as THREE.MeshBasicMaterial).opacity = opacity;
     },
   };
 }

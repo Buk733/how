@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ECONOMY } from './config';
+import { ECONOMY, UPGRADES } from './config';
 import { CHARACTERS, characterById } from './data/characters';
 import { checkPurchase, findSlotFor, sellValue, totalIncome, unlockCost } from './economy';
 import { createSave } from './save';
@@ -62,6 +62,13 @@ describe('экономика', () => {
     expect(totalIncome(save)).toBe(def('panther').income + def('kotost').income);
   });
 
+  it('печь увеличивает доход', () => {
+    const save = createSave();
+    save.slots[0].id = 'kotost';
+    save.upgrades.stove = 2;
+    expect(totalIncome(save)).toBeCloseTo(def('kotost').income * (1 + 2 * UPGRADES.stove.perLevel));
+  });
+
   it('за заменённого возвращают половину цены', () => {
     expect(sellValue(def('kotost'))).toBe(Math.floor(def('kotost').price * ECONOMY.sellRatio));
   });
@@ -73,7 +80,7 @@ describe('экономика', () => {
   });
 
   it('чем редкее персонаж, тем он дороже и доходнее', () => {
-    const order = ['common', 'rare', 'epic', 'legendary'];
+    const order = ['common', 'rare', 'epic', 'legendary', 'mythic'];
     const byRarity = order.map((r) => CHARACTERS.filter((c) => c.rarity === r));
     for (let i = 1; i < byRarity.length; i++) {
       const cheapestHigher = Math.min(...byRarity[i].map((c) => c.price));

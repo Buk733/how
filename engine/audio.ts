@@ -5,6 +5,12 @@ export interface PlayOptions {
   readonly duration?: number;
   /** Громкость 0…1. */
   readonly volume?: number;
+  /** Играть по кругу (фоновая музыка). */
+  readonly loop?: boolean;
+  /** Плавно появиться за столько секунд, а не начаться резко. */
+  readonly fadeIn?: number;
+  /** Плавно затихнуть к концу записи за столько секунд (не для loop). */
+  readonly fadeOut?: number;
 }
 
 export interface LoadOptions {
@@ -15,7 +21,26 @@ export interface LoadOptions {
   readonly normalizeTo?: number;
 }
 
-export type Blip = 'coin' | 'buy' | 'unlock' | 'error' | 'alarm' | 'caught';
+export type Blip = 'coin' | 'buy' | 'unlock' | 'error' | 'alarm' | 'caught' | 'swing' | 'whack';
+
+interface Voice {
+  readonly source: AudioBufferSourceNode;
+  readonly gain: GainNode;
+  /** Множитель выравнивания громкости этой записи. */
+  readonly level: number;
+}
+
+/** Ноты синтезированных звуков: [частота, задержка], и какой волной их играть. */
+const BLIPS: Record<Blip, { readonly wave: OscillatorType; readonly notes: readonly (readonly [number, number])[]; readonly length?: number }> = {
+  coin: { wave: 'square', notes: [[988, 0], [1319, 0.06]] },
+  buy: { wave: 'square', notes: [[523, 0], [659, 0.07], [784, 0.14]] },
+  unlock: { wave: 'square', notes: [[392, 0], [523, 0.08], [659, 0.16], [1047, 0.24]] },
+  error: { wave: 'sawtooth', notes: [[196, 0], [165, 0.1]] },
+  alarm: { wave: 'square', notes: [[880, 0], [659, 0.12], [880, 0.24], [659, 0.36]] },
+  caught: { wave: 'square', notes: [[330, 0], [247, 0.1], [196, 0.2]] },
+  swing: { wave: 'triangle', notes: [[740, 0], [520, 0.03], [330, 0.06]], length: 0.07 },
+  whack: { wave: 'sawtooth', notes: [[170, 0], [110, 0.05]], length: 0.1 },
+};
 
 /**
  * Звук на Web Audio API. Браузер разрешает звук только после первого касания
@@ -27,7 +52,7 @@ export class AudioManager {
   private readonly master: GainNode | null;
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly gains = new Map<string, number>();
-  private readonly voices = new Map<string, AudioBufferSourceNode>();
+  private readonly voices = new Map<string, Voice>();
   private mutedState = false;
   private paused = false;
 
@@ -51,11 +76,15 @@ export class AudioManager {
     if (!this.context) return;
     const response = await fetch(url);
     const buffer = await this.context.decodeAudioData(await response.arrayBuffer());
-    this.buffers.set(id, buffer);
-    if (options.normalizeTo) {
-      const gain = options.normalizeTo / Math.max(rms(buffer), 1e-4);
-      this.gains.set(id, Math.min(4, Math.max(0.1, gain)));
-    }
+    this.setBuffer(id, buffer, options);
+  }
+
+  /** Добавляет запись из готовых сэмплов (например, музыку, сгенерированную кодом). */
+  addSamples(id: string, samples: Float32Array, sampleRate: number, options: LoadOptions = {}): void {
+    if (!this.context) return;
+    const buffer = this.context.createBuffer(1, samples.length, sampleRate);
+    buffer.getChannelData(0).set(samples);
+    this.setBuffer(id, buffer, options);
   }
 
   /** Звучит ли сейчас эта запись. */
@@ -71,42 +100,71 @@ export class AudioManager {
   play(id: string, options: PlayOptions = {}): void {
     const buffer = this.buffers.get(id);
     if (!this.context || !this.master || !buffer || this.paused) return;
-    this.voices.get(id)?.stop();
+    this.voices.get(id)?.source.stop();
+    const now = this.context.currentTime;
     const source = this.context.createBufferSource();
     source.buffer = buffer;
+    source.loop = options.loop === true;
     const gain = this.context.createGain();
-    gain.gain.value = (options.volume ?? 1) * (this.gains.get(id) ?? 1);
+    const level = this.gains.get(id) ?? 1;
+    const target = (options.volume ?? 1) * level;
+    const offset = options.offset ?? 0;
+    if (options.fadeIn) {
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(target, now + options.fadeIn);
+    } else {
+      gain.gain.setValueAtTime(target, now);
+    }
+    const length = options.duration ?? buffer.duration - offset;
+    if (options.fadeOut && !source.loop && length > (options.fadeIn ?? 0) + options.fadeOut) {
+      gain.gain.setValueAtTime(target, now + length - options.fadeOut);
+      gain.gain.linearRampToValueAtTime(0, now + length);
+    }
     source.connect(gain).connect(this.master);
-    source.start(0, options.offset ?? 0, options.duration);
+    if (source.loop) source.start(0, offset);
+    else source.start(0, offset, options.duration);
     source.onended = () => {
-      if (this.voices.get(id) === source) this.voices.delete(id);
+      if (this.voices.get(id)?.source === source) this.voices.delete(id);
     };
-    this.voices.set(id, source);
+    this.voices.set(id, { source, gain, level });
+  }
+
+  /** Плавно меняет громкость звучащей записи за seconds секунд. */
+  fadeTo(id: string, volume: number, seconds: number): void {
+    const voice = this.voices.get(id);
+    if (!voice || !this.context) return;
+    const now = this.context.currentTime;
+    const param = voice.gain.gain;
+    param.cancelScheduledValues(now);
+    param.setValueAtTime(param.value, now);
+    param.linearRampToValueAtTime(volume * voice.level, now + seconds);
+  }
+
+  /** Останавливает запись; fade — затухание в секундах. Сразу считается не звучащей. */
+  stop(id: string, fade = 0): void {
+    const voice = this.voices.get(id);
+    if (!voice || !this.context) return;
+    if (fade > 0) this.fadeTo(id, 0, fade);
+    voice.source.stop(this.context.currentTime + fade);
+    this.voices.delete(id);
   }
 
   /** Короткие синтезированные звуки интерфейса — без файлов. */
   blip(kind: Blip): void {
     if (!this.context || !this.master || this.paused) return;
-    const notes: Record<Blip, [number, number][]> = {
-      coin: [[988, 0], [1319, 0.06]],
-      buy: [[523, 0], [659, 0.07], [784, 0.14]],
-      unlock: [[392, 0], [523, 0.08], [659, 0.16], [1047, 0.24]],
-      error: [[196, 0], [165, 0.1]],
-      alarm: [[880, 0], [659, 0.12], [880, 0.24], [659, 0.36]],
-      caught: [[330, 0], [247, 0.1], [196, 0.2]],
-    };
+    const { wave, notes, length = 0.12 } = BLIPS[kind];
     const now = this.context.currentTime;
-    for (const [frequency, delay] of notes[kind]) {
+    for (const [frequency, delay] of notes) {
       const osc = this.context.createOscillator();
       const gain = this.context.createGain();
-      osc.type = kind === 'error' ? 'sawtooth' : 'square';
+      osc.type = wave;
       osc.frequency.value = frequency;
       gain.gain.setValueAtTime(0.0001, now + delay);
       gain.gain.exponentialRampToValueAtTime(0.05, now + delay + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + length);
       osc.connect(gain).connect(this.master);
       osc.start(now + delay);
-      osc.stop(now + delay + 0.13);
+      osc.stop(now + delay + length + 0.01);
     }
   }
 
@@ -120,6 +178,14 @@ export class AudioManager {
     if (!this.context) return;
     if (paused) void this.context.suspend();
     else void this.context.resume();
+  }
+
+  private setBuffer(id: string, buffer: AudioBuffer, options: LoadOptions): void {
+    this.buffers.set(id, buffer);
+    if (options.normalizeTo) {
+      const gain = options.normalizeTo / Math.max(rms(buffer), 1e-4);
+      this.gains.set(id, Math.min(4, Math.max(0.1, gain)));
+    }
   }
 }
 

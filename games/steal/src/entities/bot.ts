@@ -3,24 +3,31 @@ import { Animator, type AnimationClip } from '@engine/animation';
 import { Facing, facingFromCamera } from '@engine/direction';
 import type { Label } from '@engine/labels';
 import type { SpriteSheet } from '@engine/sprite';
-import { Actor } from './actor';
-import { moveWithCollisions, type Obstacles } from './player';
+import { Actor, moveWithCollisions, type Obstacles } from './actor';
+import { SwingEffect } from './swing';
 
 const IDLE: AnimationClip = { frames: [0], fps: 1 };
 const WALK: AnimationClip = { frames: [0, 1, 2, 3], fps: 10 };
 const BOT_RADIUS = 0.35;
+/** Ближе этого к цели бот не подходит. */
+const STOP_DISTANCE = 0.75;
 
 /**
  * idle — гуляет по своей бане; sleeping — спит (не замечает краж);
- * alert — заметил кражу; chase — гонится за игроком; returning — идёт домой;
+ * notice — заметил игрока у себя в бане; guard — идёт выгонять его веником;
+ * alert — заметил кражу; chase — гонится за игроком с добычей;
+ * swing — замахнулся веником (удар через мгновение); returning — идёт домой;
  * raidGo — идёт к бане игрока; raidWait — ждёт у закрытой щеколды; raidEnter — заходит за персонажем;
- * raidEscape — убегает с добычей; stunned — его прогнали или поймали, стоит оглушённый.
+ * raidEscape — убегает с добычей; stunned — получил веником, стоит оглушённый.
  */
 export type BotState =
   | 'idle'
   | 'sleeping'
+  | 'notice'
+  | 'guard'
   | 'alert'
   | 'chase'
+  | 'swing'
   | 'returning'
   | 'raidGo'
   | 'raidWait'
@@ -28,7 +35,7 @@ export type BotState =
   | 'raidEscape'
   | 'stunned';
 
-/** Сосед-бот: только тело и ходьба. Решения принимает Neighborhood. */
+/** Сосед-бот: только тело, ходьба и веник. Решения принимает Neighborhood. */
 export class Bot extends Actor {
   state: BotState = 'idle';
   /** Сколько секунд прошло в текущем состоянии. */
@@ -38,14 +45,16 @@ export class Bot extends Actor {
   readonly label: Label;
   private readonly animator = new Animator(IDLE);
   private readonly path: THREE.Vector3[] = [];
+  private readonly swingEffect: SwingEffect;
   private facing: Facing = Facing.Front;
   private moved = false;
   private status = '';
 
-  constructor(sheet: SpriteSheet, label: Label) {
+  constructor(sheet: SpriteSheet, label: Label, broomSheet: SpriteSheet) {
     super(sheet, 0.8);
     this.label = label;
     this.sprite.enableSilhouette();
+    this.swingEffect = new SwingEffect(broomSheet, this.root);
   }
 
   setState(state: BotState, timer = 0): void {
@@ -88,21 +97,29 @@ export class Bot extends Actor {
     return this.path.length === 0;
   }
 
-  /** Бежит прямо к цели, упираясь в стены. */
+  /** Бежит прямо к цели, упираясь в стены, и останавливается в шаге от неё — не наступает на игрока. */
   runTowards(target: THREE.Vector3, speed: number, dt: number, obstacles: Obstacles): void {
     const dx = target.x - this.position.x;
     const dz = target.z - this.position.z;
     const distance = Math.hypot(dx, dz);
-    if (distance < 0.05) return;
-    const step = Math.min(distance, speed * dt);
+    this.face(dx, dz);
+    if (distance <= STOP_DISTANCE) return;
+    const step = Math.min(distance - STOP_DISTANCE, speed * dt);
     const p = moveWithCollisions(this.position.x, this.position.z, (dx / distance) * step, (dz / distance) * step, BOT_RADIUS, obstacles);
     this.position.x = p.x;
     this.position.z = p.z;
-    this.face(dx, dz);
     this.moved = true;
   }
 
-  /** Подпись над головой: «💤», «!», «😤» и т. п. */
+  /** Бьёт веником в сторону цели. */
+  swingAt(target: THREE.Vector3): void {
+    const dx = target.x - this.position.x;
+    const dz = target.z - this.position.z;
+    this.face(dx, dz);
+    this.swingEffect.play(dx, dz, dx < 0);
+  }
+
+  /** Подпись над головой: «💤», «❗», «😤» и т. п. */
   setStatus(text: string): void {
     if (text === this.status) return;
     this.status = text;
@@ -110,12 +127,17 @@ export class Bot extends Actor {
     this.label.visible = text !== '';
   }
 
-  /** Анимация по итогам кадра: шёл — шагает, стоял — стоит. */
-  animate(dt: number): void {
+  /** Анимация по итогам кадра: шёл — шагает, стоял — стоит; отлёт от удара. */
+  animate(dt: number, obstacles: Obstacles): void {
+    this.updateKnock(dt, BOT_RADIUS, obstacles);
     this.stateTime += dt;
     this.animator.play(this.moved ? WALK : IDLE);
     this.animator.update(dt);
     this.sprite.setFrame(this.animator.frame, this.facing);
+    // замах — присел перед ударом, оглушён — шатается
+    const squash = this.state === 'swing' ? 0.12 : this.state === 'stunned' ? Math.sin(this.stateTime * 18) * 0.08 : 0;
+    this.sprite.setSquash(squash);
+    this.swingEffect.update(dt);
     this.label.anchor.set(this.position.x, 1.7, this.position.z);
     this.moved = false;
   }

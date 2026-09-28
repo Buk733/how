@@ -2,7 +2,10 @@ import { formatNumber } from '@engine/format';
 
 export interface HudCallbacks {
   onAction(): void;
+  onAttack(): void;
+  onToggleUpgrades(): void;
   onToggleMute(): void;
+  onToggleMusic(): void;
 }
 
 /** Что показывает большая кнопка действия (купить, открыть место и т. п.). */
@@ -12,27 +15,45 @@ export interface ActionView {
   readonly enabled: boolean;
 }
 
-function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ''): HTMLElementTagNameMap[K] {
+export function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ''): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
   el.className = className;
   el.textContent = text;
   return el;
 }
 
-/** Интерфейс поверх игры: монеты, доход, кнопка действия, объявления. */
+/** Кнопка интерфейса, нажатие которой не запускает джойстик и удар мышью. */
+function button(className: string, text: string, onPress: () => void, instant = false): HTMLButtonElement {
+  const el = element('button', className, text);
+  el.type = 'button';
+  el.addEventListener('pointerdown', (event) => {
+    event.stopPropagation();
+    if (!instant) return;
+    event.preventDefault();
+    onPress();
+  });
+  if (!instant) el.addEventListener('click', () => onPress());
+  return el;
+}
+
+/** Интерфейс поверх игры: монеты, доход, кнопки действия, веника и прокачки, объявления. */
 export class Hud {
   private readonly root: HTMLDivElement;
   private readonly coins: HTMLSpanElement;
   private readonly income: HTMLDivElement;
+  private readonly upgrades: HTMLButtonElement;
   private readonly action: HTMLButtonElement;
   private readonly actionTitle: HTMLSpanElement;
   private readonly actionDetail: HTMLSpanElement;
+  private readonly broom: HTMLButtonElement;
   private readonly mute: HTMLButtonElement;
+  private readonly music: HTMLButtonElement;
   private readonly banner: HTMLDivElement;
   private bannerTimer = 0;
   private lastCoins = -1;
   private lastIncome = -1;
   private lastAction = '';
+  private lastRecharge = -1;
 
   constructor(container: HTMLElement, coinIconUrl: string, callbacks: HudCallbacks) {
     this.root = element('div', 'hud');
@@ -46,26 +67,26 @@ export class Hud {
     row.append(icon, this.coins);
     wallet.append(row, this.income);
 
-    this.mute = element('button', 'hud-mute');
-    this.mute.type = 'button';
-    this.mute.addEventListener('pointerdown', (event) => event.stopPropagation());
-    this.mute.addEventListener('click', () => callbacks.onToggleMute());
+    this.upgrades = button('hud-upgrades', '⚡ Прокачка', () => callbacks.onToggleUpgrades());
+    this.upgrades.append(element('kbd', 'hud-key', 'U'));
+    const left = element('div', 'hud-left');
+    left.append(wallet, this.upgrades);
 
-    this.action = element('button', 'hud-action');
-    this.action.type = 'button';
+    this.mute = button('hud-round hud-mute', '', () => callbacks.onToggleMute());
+    this.music = button('hud-round hud-music', '🎵', () => callbacks.onToggleMusic());
+
+    this.broom = button('hud-broom', '🧹', () => callbacks.onAttack(), true);
+    this.broom.title = 'Шлёпнуть веником';
+    this.broom.append(element('kbd', 'hud-key', 'F'));
+
+    this.action = button('hud-action', '', () => callbacks.onAction(), true);
     this.actionTitle = element('span', 'hud-action-title');
     this.actionDetail = element('span', 'hud-action-detail');
-    const key = element('kbd', 'hud-action-key', 'E');
-    this.action.append(this.actionTitle, this.actionDetail, key);
-    this.action.addEventListener('pointerdown', (event) => {
-      event.stopPropagation(); // не запускать джойстик
-      event.preventDefault();
-      callbacks.onAction();
-    });
+    this.action.append(this.actionTitle, this.actionDetail, element('kbd', 'hud-key', 'E'));
+    this.action.hidden = true;
 
     this.banner = element('div', 'hud-banner');
-    this.action.hidden = true;
-    this.root.append(wallet, this.mute, this.action, this.banner);
+    this.root.append(left, this.mute, this.music, this.broom, this.action, this.banner);
     container.append(this.root);
   }
 
@@ -92,9 +113,29 @@ export class Hud {
     this.action.classList.toggle('disabled', !view.enabled);
   }
 
+  /** Кнопка веника: recharge — сколько осталось до перезарядки (1…0), usable — можно ли бить сейчас. */
+  setBroom(recharge: number, usable: boolean): void {
+    const shown = Math.ceil(recharge * 36) / 36;
+    if (shown !== this.lastRecharge) {
+      this.lastRecharge = shown;
+      this.broom.style.setProperty('--recharge', String(shown));
+    }
+    this.broom.classList.toggle('disabled', !usable);
+  }
+
+  /** Отметка на кнопке прокачки: есть что купить. */
+  setUpgradesBadge(show: boolean): void {
+    this.upgrades.classList.toggle('has-offer', show);
+  }
+
   setMuted(muted: boolean): void {
     this.mute.textContent = muted ? '🔇' : '🔊';
     this.mute.title = muted ? 'Включить звук' : 'Выключить звук';
+  }
+
+  setMusic(on: boolean): void {
+    this.music.classList.toggle('off', !on);
+    this.music.title = on ? 'Выключить музыку' : 'Включить музыку';
   }
 
   /** Крупное объявление по центру сверху. */

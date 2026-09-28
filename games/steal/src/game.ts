@@ -2,27 +2,33 @@ import * as THREE from 'three';
 import { loadSpriteSheets, loadTileTexture } from '@engine/assets';
 import { AudioManager } from '@engine/audio';
 import { FollowCamera } from '@engine/camera';
+import { renderSongGradually } from '@engine/chiptune';
 import { Input } from '@engine/input';
 import { LabelLayer, type Label } from '@engine/labels';
 import type { Platform } from '@engine/platform/platform';
 import { Rng } from '@engine/rng';
 import type { SpriteSheet, SpriteSheetDef } from '@engine/sprite';
+import { Broom } from './broom';
 import { Carpet, RARE_THEME } from './carpet';
-import { AUDIO, CAMERA, CARPET, FOG, PLAYER, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
+import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, RENDER_SHORT_SIDE, SKY_COLOR, UPGRADES } from './config';
 import type { Action, GameContext, TutorialEvent } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
 import { totalIncome } from './economy';
 import { Brainrot } from './entities/brainrot';
 import { Player } from './entities/player';
 import { Home } from './home';
+import { BANYA_POLKA } from './music';
 import { Neighborhood } from './neighborhood';
 import { parseSave, TUTORIAL_DONE, type SaveData } from './save';
 import { Spawner } from './spawner';
 import { Hud } from './ui/hud';
+import { UpgradePanel, type UpgradeRowView } from './ui/upgrade-panel';
+import { broomStun, buyUpgrade, checkUpgrade, describeUpgrade, maxLevel, seconds, speedMultiplier, UPGRADE_IDS, type UpgradeId } from './upgrades';
 import { buildWorld, type World } from './world';
 import heroUrl from './assets/sprites/hero.png';
 import neighborGreenUrl from './assets/sprites/neighbor-green.png';
 import neighborPurpleUrl from './assets/sprites/neighbor-purple.png';
+import broomSwingUrl from './assets/sprites/broom-swing.png';
 import coinUrl from './assets/sprites/coin.png';
 import plateUrl from './assets/sprites/plate.png';
 import steamUrl from './assets/sprites/steam.png';
@@ -43,6 +49,11 @@ const MAX_DT = 0.1;
 const PASSIVE_SAVE_INTERVAL = 10_000;
 /** Персонажи 32×32 при 18 px на единицу — чуть выше героя. */
 const CHARACTER_PPU = 18;
+/** Id фоновой мелодии и частота, с которой она синтезируется. */
+const BACKGROUND_MUSIC = 'background-music';
+const MUSIC_SAMPLE_RATE = 32000;
+/** Сколько миллисекунд кадра можно тратить на синтез мелодии. */
+const MUSIC_JOB_BUDGET_MS = 4;
 
 const sheet = (url: string, frameWidth: number, frameHeight: number, pixelsPerUnit = 16): SpriteSheetDef => ({
   url,
@@ -55,6 +66,7 @@ const SHEETS = {
   hero: sheet(heroUrl, 16, 16, 12),
   neighborGreen: sheet(neighborGreenUrl, 16, 16, 12),
   neighborPurple: sheet(neighborPurpleUrl, 16, 16, 12),
+  broom: sheet(broomSwingUrl, 24, 24, 20),
   plate: sheet(plateUrl, 16, 16, 11),
   steam: sheet(steamUrl, 8, 8, 10),
   tree: sheet(treeUrl, 32, 40),
@@ -92,6 +104,8 @@ export class Game implements GameContext {
   private readonly home: Home;
   private readonly carpet: Carpet;
   private readonly neighborhood: Neighborhood;
+  private readonly broom: Broom;
+  private readonly upgradePanel: UpgradePanel;
   private readonly resizeObserver: ResizeObserver;
   private lastFrame: number | null = null;
   private pausedByPlatform = false;
@@ -100,6 +114,12 @@ export class Game implements GameContext {
   private urgentSave = false;
   private lastSave = 0;
   private tutorialLabel: Label | null = null;
+  /** Фоновая мелодия синтезируется понемногу в каждом кадре, пока не будет готова. */
+  private musicJob: Generator<void, Float32Array, void> | null = renderSongGradually(BANYA_POLKA, MUSIC_SAMPLE_RATE);
+  /** Игрок уже касался экрана или клавиш — браузер разрешил звук. */
+  private gestureSeen = false;
+  /** Фоновая мелодия притихла, пока звучит трек редкого персонажа. */
+  private musicDucked = false;
 
   /** Загружает всё нужное и собирает игру внутри container. */
   static async create(container: HTMLElement, platform: Platform): Promise<Game> {
@@ -153,18 +173,34 @@ export class Game implements GameContext {
     this.cameraRig.jumpTo(this.player.position);
 
     this.input = new Input(container);
-    this.input.onFirstGesture(() => this.audio.unlock());
+    this.input.onFirstGesture(() => {
+      this.gestureSeen = true;
+      this.audio.unlock();
+      this.startMusic();
+    });
+    this.input.onKey('KeyU', () => this.setUpgradesOpen(!this.upgradePanel.isOpen));
+    this.input.onKey('Escape', () => this.setUpgradesOpen(false));
     this.hud = new Hud(container, coinUrl, {
       onAction: () => this.input.queueAction(),
+      onAttack: () => this.input.queueAttack(),
+      onToggleUpgrades: () => this.setUpgradesOpen(!this.upgradePanel.isOpen),
       onToggleMute: () => this.toggleMute(),
+      onToggleMusic: () => this.toggleMusic(),
     });
+    this.upgradePanel = new UpgradePanel(
+      container,
+      (id) => this.buyUpgrade(id as UpgradeId),
+      () => this.setUpgradesOpen(false),
+    );
     this.audio.setMuted(this.save.muted);
     this.hud.setMuted(this.save.muted);
+    this.hud.setMusic(this.save.music);
 
     this.home = new Home(this, sheets.plate);
-    this.neighborhood = new Neighborhood(this, this.home, [sheets.neighborGreen, sheets.neighborPurple]);
+    this.neighborhood = new Neighborhood(this, this.home, [sheets.neighborGreen, sheets.neighborPurple], sheets.broom);
     this.carpet = new Carpet(this, this.home, new Spawner(this.rng, CHARACTERS, CARPET.spawnInterval));
     this.carpet.prefill();
+    this.broom = new Broom(this, sheets.broom);
 
     platform.onPause(() => this.setPausedByPlatform(true));
     platform.onResume(() => this.setPausedByPlatform(false));
@@ -198,15 +234,21 @@ export class Game implements GameContext {
     const zoom = this.input.consumeZoom();
     if (zoom) this.cameraRig.zoom(zoom);
 
-    this.player.update(dt, this.input.move, this.cameraRig.yawRadians, this.world, this.neighborhood.speedFactor);
+    const speed = this.neighborhood.speedFactor * speedMultiplier(this.save.upgrades);
+    this.player.update(dt, this.input.move, this.cameraRig.yawRadians, this.neighborhood.playerObstacles(), speed);
+    this.broom.update(dt);
     this.carpet.update(dt);
     this.home.update(dt);
     this.neighborhood.update(dt);
     this.world.update(dt);
     if (this.save.tutorial === 0 && !this.carpet.tutorialWalker) this.carpet.spawnTutorialWalker();
 
+    if (this.input.consumeAttack()) this.attack();
     const action: Action | null =
-      this.home.findAction() ?? this.neighborhood.findAction() ?? this.carpet.findAction(this.neighborhood.isCarrying);
+      this.findHitAction() ??
+      this.home.findAction() ??
+      this.neighborhood.findAction() ??
+      this.carpet.findAction(this.neighborhood.isCarrying);
     this.hud.setAction(action?.view ?? null);
     if (this.input.consumeAction()) {
       if (action?.view.enabled) action.run();
@@ -214,9 +256,78 @@ export class Game implements GameContext {
     }
 
     this.hud.setWallet(this.save.coins, totalIncome(this.save));
+    this.hud.setBroom(this.broom.recharge, !this.neighborhood.isCarrying && !this.player.isStunned);
+    this.hud.setUpgradesBadge(UPGRADE_IDS.some((id) => checkUpgrade(this.save, id).ok));
+    if (this.upgradePanel.isOpen) this.upgradePanel.render(this.upgradeRows());
+    this.continueMusicJob();
+    this.updateMusic();
     this.cameraRig.update(dt, this.player.position);
     this.updateTutorialPointer();
     this.maybeSave();
+  }
+
+  // ---------------------------------------------------------------- веник
+
+  /** Удар веником: оглушает соседей рядом. С добычей на руках бить нельзя. */
+  private attack(): void {
+    if (this.player.isStunned) return;
+    if (this.neighborhood.isCarrying) {
+      this.hud.showBanner('Руки заняты — сначала донеси добычу', '#ffcd75', 1500);
+      return;
+    }
+    if (!this.broom.ready) return;
+    this.broom.swing();
+    this.neighborhood.hitAround(this.player.position, BROOM.range, broomStun(this.save.upgrades));
+  }
+
+  /** Если рядом враждебный сосед — главная кнопка тоже бьёт веником. */
+  private findHitAction(): Action | null {
+    if (this.neighborhood.isCarrying || this.player.isStunned) return null;
+    const target = this.neighborhood.hostileNear(this.player.position, BROOM.range);
+    if (!target) return null;
+    return {
+      view: this.broom.ready
+        ? { title: 'Шлёпнуть веником', detail: `${target.name} — оглушить на ${seconds(broomStun(this.save.upgrades))}`, enabled: true }
+        : { title: 'Шлёпнуть веником', detail: 'веник перезаряжается…', enabled: false },
+      run: () => this.attack(),
+    };
+  }
+
+  // ---------------------------------------------------------------- прокачка
+
+  private setUpgradesOpen(open: boolean): void {
+    if (open === this.upgradePanel.isOpen) return;
+    this.upgradePanel.setOpen(open);
+    if (open) this.upgradePanel.render(this.upgradeRows());
+  }
+
+  private upgradeRows(): UpgradeRowView[] {
+    return UPGRADE_IDS.map((id) => {
+      const level = this.save.upgrades[id];
+      const check = checkUpgrade(this.save, id);
+      const top = level >= maxLevel(id);
+      return {
+        id,
+        icon: UPGRADES[id].icon,
+        name: UPGRADES[id].name,
+        level,
+        maxLevel: maxLevel(id),
+        now: describeUpgrade(id, level),
+        next: top ? null : describeUpgrade(id, level + 1),
+        cost: top ? null : UPGRADES[id].costs[level],
+        affordable: check.ok,
+      };
+    });
+  }
+
+  private buyUpgrade(id: UpgradeId): void {
+    if (!buyUpgrade(this.save, id)) {
+      this.audio.blip('error');
+      return;
+    }
+    this.audio.blip('unlock');
+    this.labels.float(`${UPGRADES[id].icon} ур. ${this.save.upgrades[id]}`, this.player.position.clone().setY(2.2), 'float-coins');
+    this.markDirty(true);
   }
 
   // ---------------------------------------------------------------- GameContext
@@ -253,7 +364,7 @@ export class Game implements GameContext {
       this.hud.showBanner('Отлично! Копи на персонажей подороже');
     } else if (event === 'stolen' && step === 2) {
       this.save.tutorial = TUTORIAL_DONE;
-      this.hud.showBanner('Соседи тоже будут красть — закрывай баню на щеколду!', '#ffcd75', 4500);
+      this.hud.showBanner('Соседи тоже будут красть — закрывай баню и бей воров веником!', '#ffcd75', 4500);
     } else return;
     this.updateTutorial();
     this.markDirty(true);
@@ -315,6 +426,48 @@ export class Game implements GameContext {
     label.anchor.copy(target);
   }
 
+  // ---------------------------------------------------------------- музыка
+
+  /** Фоновая мелодия: включается после первого касания и плавно появляется. */
+  private startMusic(): void {
+    if (!this.save.music || this.musicJob || !this.gestureSeen || this.audio.isPlaying(BACKGROUND_MUSIC)) return;
+    this.audio.play(BACKGROUND_MUSIC, { loop: true, volume: this.musicDucked ? 0 : AUDIO.music, fadeIn: 4 });
+  }
+
+  /** Синтез мелодии — не дольше нескольких миллисекунд за кадр, чтобы игра не подвисала. */
+  private continueMusicJob(): void {
+    if (!this.musicJob) return;
+    const deadline = performance.now() + MUSIC_JOB_BUDGET_MS;
+    while (performance.now() < deadline) {
+      const result = this.musicJob.next();
+      if (!result.done) continue;
+      this.musicJob = null;
+      this.audio.addSamples(BACKGROUND_MUSIC, result.value, MUSIC_SAMPLE_RATE, { normalizeTo: AUDIO.normalizeTo });
+      this.startMusic();
+      return;
+    }
+  }
+
+  private toggleMusic(): void {
+    this.save.music = !this.save.music;
+    this.hud.setMusic(this.save.music);
+    if (this.save.music) {
+      this.startMusic();
+    } else {
+      this.audio.stop(BACKGROUND_MUSIC, 1);
+      this.audio.stop(RARE_THEME, 1);
+    }
+    this.markDirty(true);
+  }
+
+  /** Пока звучит трек редкого персонажа, фоновая мелодия плавно затихает, потом возвращается. */
+  private updateMusic(): void {
+    const rare = this.audio.isPlaying(RARE_THEME);
+    if (rare === this.musicDucked) return;
+    this.musicDucked = rare;
+    this.audio.fadeTo(BACKGROUND_MUSIC, rare ? 0 : AUDIO.music, rare ? AUDIO.fadeIn : 4);
+  }
+
   // ---------------------------------------------------------------- сохранение, пауза, звук
 
   private maybeSave(): void {
@@ -372,6 +525,15 @@ export class Game implements GameContext {
 
   /** Для отладки из консоли браузера (только в режиме разработки). */
   get debug() {
-    return { save: this.save, player: this.player, carpet: this.carpet, home: this.home, neighborhood: this.neighborhood, game: this };
+    return {
+      save: this.save,
+      player: this.player,
+      carpet: this.carpet,
+      home: this.home,
+      neighborhood: this.neighborhood,
+      broom: this.broom,
+      audio: this.audio,
+      game: this,
+    };
   }
 }

@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import { formatNumber } from '@engine/format';
 import { clamp, distanceXZ, type PointXZ } from '@engine/math';
 import type { SpriteSheet } from '@engine/sprite';
-import { LOCK, PLATE_RADIUS } from './config';
+import { PLATE_RADIUS } from './config';
 import type { Action, GameContext } from './context';
 import { characterById } from './data/characters';
 import { findSlotFor, sellValue, unlockCost, type SlotChoice } from './economy';
 import type { Brainrot } from './entities/brainrot';
 import { Plate } from './entities/plate';
 import { pickRaidTarget } from './neighbors';
+import { incomeMultiplier, latchDuration } from './upgrades';
 
 /** Баня игрока: персонажи на полке, плиты сбора, открытие мест и щеколда. */
 export class Home {
@@ -61,13 +62,14 @@ export class Home {
 
   update(dt: number): void {
     const { save, player } = this.ctx;
+    const multiplier = incomeMultiplier(save.upgrades);
     for (let i = 0; i < this.residents.length; i++) {
       const resident = this.residents[i];
       const slot = save.slots[i];
       const plate = this.plates[i];
       if (resident) {
         resident.update(dt);
-        if (resident.state === 'seated') slot.stored += resident.def.income * dt;
+        if (resident.state === 'seated') slot.stored += resident.def.income * multiplier * dt;
       }
 
       if (i >= save.unlocked) {
@@ -83,7 +85,7 @@ export class Home {
     }
 
     const locked = this.locked;
-    this.ctx.world.lockBarrier.visible = locked;
+    this.ctx.world.home.barrier.visible = locked;
     this.lockPlate.setText(locked ? `🔒 ${Math.ceil(this.lockedUntil - this.ctx.time)} с` : '🔓 Щеколда');
   }
 
@@ -94,7 +96,7 @@ export class Home {
       return {
         view: locked
           ? { title: 'Баня закрыта', detail: `ещё ${Math.ceil(this.lockedUntil - this.ctx.time)} с`, enabled: false }
-          : { title: 'Закрыть баню', detail: `на ${LOCK.duration} с — воры не войдут`, enabled: true },
+          : { title: 'Закрыть баню', detail: `на ${latchDuration(this.ctx.save.upgrades)} с — воры не войдут`, enabled: true },
         run: () => this.lock(),
       };
     }
@@ -180,7 +182,7 @@ export class Home {
   }
 
   private lock(): void {
-    this.lockedUntil = this.ctx.time + LOCK.duration;
+    this.lockedUntil = this.ctx.time + latchDuration(this.ctx.save.upgrades);
     this.ctx.audio.blip('unlock');
     this.ctx.hud.showBanner('Баня закрыта на щеколду!', '#ff6b6b');
   }

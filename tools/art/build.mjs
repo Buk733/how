@@ -18,6 +18,10 @@ const outputs = {
   'sprites/hamam.png': characters.hamam(),
   'sprites/koch-bratan.png': characters.kochBratan(),
   'sprites/dark-drun.png': characters.darkDrun(),
+  'sprites/fat-mellstroy.png': characters.fatMellstroy(),
+  'sprites/indian-mellstroy.png': characters.indianMellstroy(),
+  'sprites/schoolboy.png': characters.schoolboy(),
+  'sprites/broom-swing.png': characters.broomSwing(),
   'sprites/hero.png': characters.hero(),
   // соседи-боты: тот же герой в других цветах
   'sprites/neighbor-green.png': characters.hero({ r: '#38b764', R: '#257179', o: '#a7f070', b: '#f4f4f4', B: '#94b0c2' }),

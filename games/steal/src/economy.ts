@@ -2,6 +2,7 @@
 import { ECONOMY } from './config';
 import { characterById, type CharacterDef } from './data/characters';
 import type { SaveData } from './save';
+import { incomeMultiplier } from './upgrades';
 
 export interface SlotChoice {
   /** Номер места на полке. */
@@ -46,9 +47,9 @@ function incomeOf(id: string | null | undefined): number {
   return id ? (characterById(id)?.income ?? 0) : 0;
 }
 
-/** Суммарный доход всех персонажей на полке, монет в секунду. */
+/** Суммарный доход всех персонажей на полке с прибавкой от печи, монет в секунду. */
 export function totalIncome(save: SaveData): number {
-  return save.slots.reduce((sum, slot) => sum + incomeOf(slot.id), 0);
+  return save.slots.reduce((sum, slot) => sum + incomeOf(slot.id), 0) * incomeMultiplier(save.upgrades);
 }
 
 /** Сколько вернут за персонажа, которого заменили. */

@@ -8,6 +8,9 @@ import babaChaiUrl from '../assets/sprites/baba-chai.png';
 import hamamUrl from '../assets/sprites/hamam.png';
 import kochBratanUrl from '../assets/sprites/koch-bratan.png';
 import darkDrunUrl from '../assets/sprites/dark-drun.png';
+import schoolboyUrl from '../assets/sprites/schoolboy.png';
+import fatMellstroyUrl from '../assets/sprites/fat-mellstroy.png';
+import indianMellstroyUrl from '../assets/sprites/indian-mellstroy.png';
 import pantherSound from '../sounds/tantsui-pantera.mp3';
 import kotostSound from '../sounds/kotost.mp3';
 import diverSound from '../sounds/niukhai-bystree.mp3';
@@ -52,6 +55,9 @@ export const CHARACTERS: readonly CharacterDef[] = [
   { id: 'koch-bratan', name: 'Коч Братан', rarity: 'epic', price: 7500, income: 120, sprite: kochBratanUrl },
   { id: 'hamam', name: 'Хамам', rarity: 'legendary', price: 50000, income: 600, sprite: hamamUrl },
   { id: 'dark-drun', name: 'Тёмный Друн', rarity: 'legendary', price: 90000, income: 1000, sprite: darkDrunUrl },
+  { id: 'schoolboy', name: 'Школьник второй смены', rarity: 'legendary', price: 150000, income: 1600, sprite: schoolboyUrl },
+  { id: 'fat-mellstroy', name: 'Толстый Меллстрой', rarity: 'mythic', price: 500000, income: 5000, sprite: fatMellstroyUrl },
+  { id: 'indian-mellstroy', name: 'Индеец Меллстрой', rarity: 'mythic', price: 900000, income: 8500, sprite: indianMellstroyUrl },
 ];
 
 const byId = new Map(CHARACTERS.map((c) => [c.id, c]));

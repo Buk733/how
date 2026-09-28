@@ -350,7 +350,8 @@ export function hero(colors = {}) {
   const pal = { r: C.red, R: C.plum, o: C.orange, s: C.yellow, k: C.ink, b: C.blue, B: C.navy, y: C.yellow, d: C.shadow, ...colors };
   const front = ['................', '.....rrrrrr.....', '....rorrrrrr....', '...rorrrrrrrr...', '...rrrrrrrrrr...', '...rrssssssrr...', '...rrskssksrr...', '...rrossssorr...', '...RrrssssrrR...', '....RrbbbbrR....', '...RrbbbbbbrR...', '...srbbyybbrs...', '....RBbbbbBR....'];
   const back = ['................', '.....rrrrrr.....', '....rorrrrrr....', '...rorrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...RrrrrrrrrR...', '....RRrrrrRR....', '...RrrrrrrrrR...', '...srrrrrrrrs...', '....RRRRRRRR....'];
-  const side = ['................', '......rrrrrr....', '.....rorrrrrr...', '....rorrrrrrrr..', '....rrrrrrrrrr..', '...sssssrrrrrr..', '...sksssrrrrrr..', '...sosssrrrrrr..', '....sssRrrrrR...', '.....RbbbrrrR...', '.....bbbbrrrR...', '.....bsbbrrrR...', '.....BBBBRRR....'];
+  // Профиль: лицо вровень с передним краем капюшона, чтобы не торчало из силуэта.
+  const side = ['................', '......rrrrrr....', '.....rorrrrrr...', '....rorrrrrrrr..', '....rrrrrrrrrr..', '....ssssssrrrr..', '....skssssrrrr..', '....sosssrrrrr..', '.....sssRrrrR...', '.....RbbbrrrR...', '.....bbbbrrrR...', '.....bsbbrrrR...', '.....BBBBRRR....'];
   const legsFB = { stand: ['.....dd..dd.....', '.....dd..dd.....'], liftL: ['.....dd..dd.....', '.........dd.....'], liftR: ['.....dd..dd.....', '.....dd.........'] };
   const legsSide = { stand: ['......dd........', '.....ddd........'], strideA: ['.....dd.dd......', '....dd...dd.....'], strideB: ['.....dd.dd......', '....dd....d.....'] };
   const rows = [
@@ -453,4 +454,151 @@ export function darkDrun() {
     f.set(18, 9, C.ink);
     f.rect(14, 12, 4, 1, '#a45a52');
   });
+}
+
+// ---------- Толстый Меллстрой (фото 2): круглый, стрижка «ёжик», чёрная футболка ----------
+export function fatMellstroy() {
+  return twoFrames((f, i) => {
+    const skin = '#f2c7a5';
+    const skinShade = '#d6a283';
+    const shirt = '#26232e';
+    const shirtHi = '#3f3a4d';
+    const w = i === 0 ? 0 : 0.6;
+    // ноги
+    f.rect(11, 27, 4, 3, '#3b5dc9');
+    f.rect(17, 27, 4, 3, '#29366f');
+    f.rect(10, 30, 5, 1, C.ink);
+    f.rect(17, 30, 5, 1, C.ink);
+    // руки
+    f.ellipse(6.5, 21, 2, 3.5, skin);
+    f.ellipse(25.5, 21, 2, 3.5, skinShade);
+    // огромный живот в чёрной футболке
+    f.ellipse(16, 21.5, 9.5 + w, 7.5, (nx, ny) => (nx < -0.45 && ny < 0.2 ? shirtHi : shirt));
+    f.rect(12, 20, 1, 1, '#566c86');
+    // круглая голова с двойным подбородком
+    const hy = i === 0 ? 9 : 9.5;
+    f.ellipse(16, hy + 4.2, 6.2, 2.2, skinShade);
+    f.ellipse(16, hy, 7.2 + w * 0.4, 6.8, (nx, ny) => (nx > 0.55 && ny > -0.2 ? skinShade : skin));
+    // «ёжик»
+    f.ellipse(16, hy - 4.6, 6.4, 2.6, (nx, ny) => (ny > 0.35 ? '#5a3a38' : '#3b2a26'));
+    // лицо: маленькие светлые глаза, пухлые губы
+    const ey = Math.round(hy);
+    f.rect(12, ey, 2, 1, '#9ab7d3');
+    f.rect(18, ey, 2, 1, '#9ab7d3');
+    f.set(13, ey, C.ink);
+    f.set(18, ey, C.ink);
+    f.rect(12, ey - 1, 2, 1, '#8a5a44');
+    f.rect(18, ey - 1, 2, 1, '#8a5a44');
+    f.set(16, ey + 1, skinShade);
+    f.set(16, ey + 2, skinShade);
+    f.rect(14, ey + 4, 4, 1, '#d97c86');
+    f.rect(15, ey + 5, 2, 1, '#b95a66');
+  });
+}
+
+// ---------- Индеец Меллстрой (фото 4): белое худи и головной убор из перьев ----------
+export function indianMellstroy() {
+  return twoFrames((f, i) => {
+    const hoodie = '#e7f2ee';
+    const hoodieShade = '#b9d6cc';
+    // ноги
+    f.rect(12, 27, 3, 3, C.navy);
+    f.rect(17, 27, 3, 3, C.navy);
+    f.rect(11, 30, 4, 1, C.ink);
+    f.rect(17, 30, 4, 1, C.ink);
+    // худи
+    f.ellipse(16, 22, 7.5, 6, (nx) => (nx > 0.45 ? hoodieShade : hoodie));
+    f.rect(8, 19, 2, 7, hoodie);
+    f.rect(22, 19, 2, 7, hoodieShade);
+    f.line(15, 17, 15, 22, '#94b0c2');
+    f.line(17, 17, 17, 22, '#94b0c2');
+    // голова
+    f.ellipse(16, 13, 4.8, 4.6, (nx, ny) => (nx > 0.55 && ny > -0.2 ? C.skinShade : C.skin));
+    f.set(12, 14, '#f29aa3');
+    f.set(19, 14, '#f29aa3');
+    f.set(14, 13, C.ink);
+    f.set(18, 13, C.ink);
+    f.rect(15, 16, 2, 1, '#b95a66');
+    // перья веером
+    const sway = i === 0 ? 0 : 0.05;
+    for (let k = 0; k <= 12; k++) {
+      const a = Math.PI * (1.05 + (k / 12) * 0.9) + sway;
+      for (let r = 3; r <= 10; r++) {
+        const x = 16 + Math.cos(a) * r;
+        const y = 10 + Math.sin(a) * r * 0.85;
+        f.set(x, y, r >= 9 ? C.ink : r >= 7 ? '#8a5a44' : C.white);
+      }
+    }
+    // налобная повязка с бусинами и черепком
+    f.rect(10, 9, 12, 2, '#b13e53');
+    for (const x of [11, 14, 18, 21]) f.set(x, 9, C.cyan);
+    f.rect(15, 9, 2, 2, C.white);
+    f.set(15, 10, C.ink);
+  });
+}
+
+// ---------- Школьник второй смены (фото 5): глаза навыкате, нос, улыбка, рубашка «Dodge Cabana» ----------
+export function schoolboy() {
+  return twoFrames((f, i) => {
+    const skin = '#f0c4a4';
+    const skinShade = '#d49c7c';
+    // ноги
+    f.rect(12, 26, 3, 4, C.shadow);
+    f.rect(17, 26, 3, 4, C.shadow);
+    f.rect(11, 30, 4, 1, C.ink);
+    f.rect(17, 30, 4, 1, C.ink);
+    // чёрная рубашка с тропическим принтом
+    f.rect(10, 17, 12, 10, C.black);
+    for (const [x, y, c] of [[12, 19, C.orange], [13, 20, C.green], [18, 21, C.orange], [19, 22, C.lime], [11, 24, C.green], [16, 25, C.orange], [20, 18, C.white], [14, 23, C.white]]) f.set(x, y, c);
+    // левая рука вниз, правая — «класс» с золотыми часами
+    f.rect(8, 18, 2, 6, C.black);
+    f.rect(8, 24, 2, 2, skin);
+    const hy = i === 0 ? 14 : 13;
+    f.rect(22, 18, 2, 3, C.black);
+    f.rect(22, hy + 2, 2, 3, skin);
+    f.rect(22, hy + 4, 2, 1, C.gold);
+    f.rect(22, hy, 3, 2, skin);
+    f.set(24, hy - 1, skin);
+    // голова, уши
+    f.ellipse(16, 9.5, 5.5, 6, (nx, ny) => (nx > 0.55 && ny > -0.2 ? skinShade : skin));
+    f.set(10, 9, skinShade);
+    f.set(21, 9, skinShade);
+    f.ellipse(16, 4.2, 5, 1.8, '#3b2a26');
+    // глаза навыкате
+    for (const ex of [13, 18]) {
+      f.rect(ex, 7, 2, 2, C.white);
+      f.set(ex + (i === 0 ? 0 : 1), 8, C.ink);
+    }
+    // длинный нос
+    f.rect(15, 9, 2, 2, skinShade);
+    f.rect(17, 10, 2, 1, skinShade);
+    // улыбка с дырками в зубах
+    f.rect(12, 13, 8, 2, C.ink);
+    for (const x of [13, 14, 16, 18]) f.set(x, 13, C.white);
+  });
+}
+
+// ---------- Взмах веника: 3 кадра 24×24; верхний ряд — удар вправо, нижний — то же зеркально ----------
+export function broomSwing() {
+  const s = sheet(24, 24, 3, 2);
+  const angles = [-2.4, -1.3, 0.3];
+  for (let row = 0; row < 2; row++) {
+    angles.forEach((angle, i) => {
+      const f = s.frame(i, row);
+      // след взмаха
+      if (i > 0) {
+        for (let k = 0; k < 10; k++) {
+          const a = angle - 1.1 + k * 0.1;
+          f.set(12 + Math.cos(a) * 10, 12 + Math.sin(a) * 10, C.white);
+        }
+      }
+      // ручка
+      f.line(12, 12, 12 + Math.cos(angle) * 5, 12 + Math.sin(angle) * 5, C.bark);
+      // листья
+      f.ellipse(12 + Math.cos(angle) * 8, 12 + Math.sin(angle) * 8, 3, 3, (nx, ny) => (nx + ny > 0.3 ? C.teal : C.green));
+      f.outline();
+      if (row === 1) f.mirror();
+    });
+  }
+  return s.img;
 }

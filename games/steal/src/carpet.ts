@@ -124,7 +124,9 @@ export class Carpet {
 
     if (announce && tierOf(def.rarity) >= tierOf(AUDIO.musicFromRarity)) {
       this.ctx.hud.showBanner(`На дорожке ${rarity.name.toLowerCase()} «${def.name}»!`, rarity.color, 3500);
-      if (!this.ctx.audio.isPlaying(RARE_THEME)) this.ctx.audio.play(RARE_THEME, { volume: AUDIO.music });
+      if (this.ctx.save.music && !this.ctx.audio.isPlaying(RARE_THEME)) {
+        this.ctx.audio.play(RARE_THEME, { volume: AUDIO.rareTheme, fadeIn: AUDIO.fadeIn, fadeOut: AUDIO.fadeOut });
+      }
     }
     return walker;
   }
