@@ -16,7 +16,12 @@ const outputs = {
   'sprites/diver.png': characters.diver(),
   'sprites/baba-chai.png': characters.babaChai(),
   'sprites/hamam.png': characters.hamam(),
+  'sprites/koch-bratan.png': characters.kochBratan(),
+  'sprites/dark-drun.png': characters.darkDrun(),
   'sprites/hero.png': characters.hero(),
+  // соседи-боты: тот же герой в других цветах
+  'sprites/neighbor-green.png': characters.hero({ r: '#38b764', R: '#257179', o: '#a7f070', b: '#f4f4f4', B: '#94b0c2' }),
+  'sprites/neighbor-purple.png': characters.hero({ r: '#8e5bd6', R: '#5d275d', o: '#c7a1f0', b: '#73eff7', B: '#257179' }),
   // предметы и декор
   'sprites/coin.png': textures.coin(),
   'sprites/plate.png': textures.plate(),

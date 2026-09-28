@@ -7,7 +7,15 @@ export interface PlayOptions {
   readonly volume?: number;
 }
 
-export type Blip = 'coin' | 'buy' | 'unlock' | 'error';
+export interface LoadOptions {
+  /**
+   * Выровнять громкость записи: запись подгоняется к этому среднеквадратичному уровню,
+   * чтобы тихие и громкие мемы звучали одинаково. Например, 0.1.
+   */
+  readonly normalizeTo?: number;
+}
+
+export type Blip = 'coin' | 'buy' | 'unlock' | 'error' | 'alarm' | 'caught';
 
 /**
  * Звук на Web Audio API. Браузер разрешает звук только после первого касания
@@ -18,6 +26,7 @@ export class AudioManager {
   private readonly context: AudioContext | null;
   private readonly master: GainNode | null;
   private readonly buffers = new Map<string, AudioBuffer>();
+  private readonly gains = new Map<string, number>();
   private readonly voices = new Map<string, AudioBufferSourceNode>();
   private mutedState = false;
   private paused = false;
@@ -38,11 +47,20 @@ export class AudioManager {
     return this.mutedState;
   }
 
-  async load(id: string, url: string): Promise<void> {
+  async load(id: string, url: string, options: LoadOptions = {}): Promise<void> {
     if (!this.context) return;
     const response = await fetch(url);
-    const data = await response.arrayBuffer();
-    this.buffers.set(id, await this.context.decodeAudioData(data));
+    const buffer = await this.context.decodeAudioData(await response.arrayBuffer());
+    this.buffers.set(id, buffer);
+    if (options.normalizeTo) {
+      const gain = options.normalizeTo / Math.max(rms(buffer), 1e-4);
+      this.gains.set(id, Math.min(4, Math.max(0.1, gain)));
+    }
+  }
+
+  /** Звучит ли сейчас эта запись. */
+  isPlaying(id: string): boolean {
+    return this.voices.has(id);
   }
 
   unlock(): void {
@@ -57,7 +75,7 @@ export class AudioManager {
     const source = this.context.createBufferSource();
     source.buffer = buffer;
     const gain = this.context.createGain();
-    gain.gain.value = options.volume ?? 1;
+    gain.gain.value = (options.volume ?? 1) * (this.gains.get(id) ?? 1);
     source.connect(gain).connect(this.master);
     source.start(0, options.offset ?? 0, options.duration);
     source.onended = () => {
@@ -74,6 +92,8 @@ export class AudioManager {
       buy: [[523, 0], [659, 0.07], [784, 0.14]],
       unlock: [[392, 0], [523, 0.08], [659, 0.16], [1047, 0.24]],
       error: [[196, 0], [165, 0.1]],
+      alarm: [[880, 0], [659, 0.12], [880, 0.24], [659, 0.36]],
+      caught: [[330, 0], [247, 0.1], [196, 0.2]],
     };
     const now = this.context.currentTime;
     for (const [frequency, delay] of notes[kind]) {
@@ -82,7 +102,7 @@ export class AudioManager {
       osc.type = kind === 'error' ? 'sawtooth' : 'square';
       osc.frequency.value = frequency;
       gain.gain.setValueAtTime(0.0001, now + delay);
-      gain.gain.exponentialRampToValueAtTime(0.08, now + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.05, now + delay + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.12);
       osc.connect(gain).connect(this.master);
       osc.start(now + delay);
@@ -101,4 +121,12 @@ export class AudioManager {
     if (paused) void this.context.suspend();
     else void this.context.resume();
   }
+}
+
+/** Среднеквадратичная громкость записи (по первому каналу). */
+function rms(buffer: AudioBuffer): number {
+  const data = buffer.getChannelData(0);
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+  return Math.sqrt(sum / Math.max(1, data.length));
 }

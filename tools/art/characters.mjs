@@ -345,12 +345,12 @@ export function hamam() {
 }
 
 // ---------- Игрок: мальчик в красном капюшоне, 4 направления × 4 кадра ходьбы, 16×16 ----------
-export function hero() {
+export function hero(colors = {}) {
   const s = sheet(16, 16, 4, 4);
-  const pal = { r: C.red, R: C.plum, o: C.orange, s: C.yellow, k: C.ink, b: C.blue, B: C.navy, y: C.yellow, d: C.shadow };
+  const pal = { r: C.red, R: C.plum, o: C.orange, s: C.yellow, k: C.ink, b: C.blue, B: C.navy, y: C.yellow, d: C.shadow, ...colors };
   const front = ['................', '.....rrrrrr.....', '....rorrrrrr....', '...rorrrrrrrr...', '...rrrrrrrrrr...', '...rrssssssrr...', '...rrskssksrr...', '...rrossssorr...', '...RrrssssrrR...', '....RrbbbbrR....', '...RrbbbbbbrR...', '...srbbyybbrs...', '....RBbbbbBR....'];
   const back = ['................', '.....rrrrrr.....', '....rorrrrrr....', '...rorrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...rrrrrrrrrr...', '...RrrrrrrrrR...', '....RRrrrrRR....', '...RrrrrrrrrR...', '...srrrrrrrrs...', '....RRRRRRRR....'];
-  const side = ['................', '......rrrrrr....', '.....rorrrrrr...', '....rorrrrrrrr..', '....rrrrrrrrrr..', '...sssssrrrrrr..', '...skssssrrrrr..', '...sosssrrrrrr..', '....sssRrrrrR...', '.....RbbbrrrR...', '.....bbbbrrrR...', '.....bsbbrrrR...', '.....BBBBRRR....'];
+  const side = ['................', '......rrrrrr....', '.....rorrrrrr...', '....rorrrrrrrr..', '....rrrrrrrrrr..', '...sssssrrrrrr..', '...sksssrrrrrr..', '...sosssrrrrrr..', '....sssRrrrrR...', '.....RbbbrrrR...', '.....bbbbrrrR...', '.....bsbbrrrR...', '.....BBBBRRR....'];
   const legsFB = { stand: ['.....dd..dd.....', '.....dd..dd.....'], liftL: ['.....dd..dd.....', '.........dd.....'], liftR: ['.....dd..dd.....', '.....dd.........'] };
   const legsSide = { stand: ['......dd........', '.....ddd........'], strideA: ['.....dd.dd......', '....dd...dd.....'], strideB: ['.....dd.dd......', '....dd....d.....'] };
   const rows = [
@@ -368,4 +368,89 @@ export function hero() {
     }),
   );
   return s.img;
+}
+
+// ---------- Коч Братан: парень из казахской бани — войлочная шапка, полотенце, веник ----------
+export function kochBratan() {
+  return twoFrames((f, i) => {
+    const skin = '#e2b48a';
+    const skinShade = '#bf8d63';
+    // ноги и шлёпанцы
+    f.rect(12, 26, 3, 3, skin);
+    f.rect(17, 26, 3, 3, skinShade);
+    f.rect(11, 29, 4, 2, C.red);
+    f.rect(17, 29, 4, 2, C.red);
+    // полотенце на поясе
+    f.rect(10, 21, 12, 6, C.white);
+    f.rect(10, 23, 12, 1, C.sky);
+    f.rect(19, 21, 3, 6, '#dfe3ee');
+    // торс
+    f.ellipse(16, 17.5, 5.5, 4.5, (nx) => (nx > 0.5 ? skinShade : skin));
+    // руки; в правой — веник
+    f.rect(9, 15, 2, 6, skin);
+    const hy = i === 0 ? 20 : 13;
+    f.rect(21, 15, 2, i === 0 ? 6 : 3, skinShade);
+    f.rect(22, hy - 1, 2, 2, skinShade);
+    f.line(23, hy - 1, 23, hy - 6, C.bark);
+    f.ellipse(23.5, hy - 8, 2.5, 3, (nx, ny) => (nx + ny > 0.4 ? C.teal : C.green));
+    // голова
+    f.ellipse(16, 9.5, 5, 4.8, (nx, ny) => (nx > 0.55 && ny > -0.2 ? skinShade : skin));
+    // войлочная банная шапка
+    f.ellipse(16, 5, 6.5, 3.5, (nx, ny) => (ny > 0.35 ? '#c4a97a' : '#e8d3a8'));
+    f.rect(9, 6, 14, 2, '#c4a97a');
+    f.rect(9, 6, 14, 1, '#e8d3a8');
+    // лицо: глаза-щёлочки, брови, улыбка
+    f.rect(12, 9, 2, 1, C.ink);
+    f.rect(18, 9, 2, 1, C.ink);
+    f.rect(12, 8, 2, 1, C.black);
+    f.rect(18, 8, 2, 1, C.black);
+    f.grid(13, 12, ['k....k', '.kkkk.'], { k: C.ink });
+    f.set(11, 11, '#e9938c');
+    f.set(20, 11, '#e9938c');
+  });
+}
+
+// ---------- Тёмный Друн: лысый, чёрная кожа, меховой воротник, огромная сумка ----------
+export function darkDrun() {
+  return twoFrames((f, i) => {
+    const leather = '#2f2b38';
+    const leatherHi = '#4d4760';
+    const fur = C.black;
+    // ботинки и штаны
+    f.rect(11, 28, 4, 3, C.ink);
+    f.rect(17, 28, 4, 3, C.ink);
+    f.rect(12, 22, 3, 6, leather);
+    f.rect(17, 22, 3, 6, leather);
+    f.rect(12, 22, 1, 6, leatherHi);
+    // куртка
+    f.rect(10, 15, 12, 8, leather);
+    f.rect(10, 15, 2, 8, leatherHi);
+    f.rect(15, 16, 1, 6, C.silver);
+    f.set(13, 19, C.silver);
+    f.set(19, 19, C.silver);
+    // руки
+    f.rect(8, 15, 2, 7, leather);
+    f.rect(22, 15, 2, 6, leather);
+    // сумка в левой руке: качается
+    const bx = i === 0 ? 3 : 4;
+    const by = i === 0 ? 20 : 21;
+    f.line(8, 21, bx + 3, by, C.shadow);
+    f.ellipse(bx + 3.5, by + 4, 4, 3.8, (nx, ny) => (nx < -0.3 && ny < -0.2 ? leatherHi : C.black));
+    for (const [x, y] of [[bx + 2, by + 3], [bx + 4, by + 4], [bx + 3, by + 6], [bx + 5, by + 2], [bx + 1, by + 5]]) f.set(x, y, C.silver);
+    // меховой воротник
+    f.ellipse(16, 14.5, 8, 3.2, (nx, ny) => ((Math.round(nx * 9) + Math.round(ny * 3)) % 2 ? fur : C.blackLight));
+    // лысая голова
+    f.ellipse(16, 8.5, 5, 5.2, (nx, ny) => {
+      if (nx < -0.3 && ny < -0.45) return '#ffe2c8';
+      return nx > 0.55 && ny > -0.2 ? C.skinShade : C.skin;
+    });
+    f.set(10, 9, C.skin);
+    f.set(21, 9, C.skinShade);
+    // суровое лицо
+    f.rect(12, 8, 3, 1, C.ink);
+    f.rect(17, 8, 3, 1, C.ink);
+    f.set(13, 9, C.ink);
+    f.set(18, 9, C.ink);
+    f.rect(14, 12, 4, 1, '#a45a52');
+  });
 }

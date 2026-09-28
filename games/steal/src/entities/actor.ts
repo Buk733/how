@@ -6,10 +6,12 @@ import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
 export class Actor {
   readonly root = new THREE.Group();
   readonly sprite: BillboardSprite;
+  protected readonly shadow: THREE.Mesh;
 
   constructor(sheet: SpriteSheet, shadowSize: number) {
     this.sprite = new BillboardSprite(sheet);
-    this.root.add(this.sprite.object, createBlobShadow(shadowSize));
+    this.shadow = createBlobShadow(shadowSize);
+    this.root.add(this.sprite.object, this.shadow);
   }
 
   get position(): THREE.Vector3 {

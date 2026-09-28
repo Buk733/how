@@ -3,18 +3,22 @@ import { ECONOMY } from './config';
 import { characterById, type CharacterDef } from './data/characters';
 import type { SaveData } from './save';
 
-export type PurchaseCheck =
-  | { readonly ok: true; readonly slot: number; readonly replaces: CharacterDef | null }
-  | { readonly ok: false; readonly reason: 'coins' | 'space' };
+export interface SlotChoice {
+  /** Номер места на полке. */
+  readonly slot: number;
+  /** Кого придётся заменить (null — место свободно). */
+  readonly replaces: CharacterDef | null;
+}
+
+export type PurchaseCheck = ({ readonly ok: true } & SlotChoice) | { readonly ok: false; readonly reason: 'coins' | 'space' };
 
 /**
- * Можно ли купить персонажа и на какое место он сядет.
- * Если свободных мест нет, новый персонаж заменяет самого слабого — но только если он доходнее.
+ * Куда сядет новый персонаж: на первое свободное место, а если мест нет —
+ * вместо самого слабого, но только если новый доходнее. null — места нет.
  */
-export function checkPurchase(save: SaveData, def: CharacterDef): PurchaseCheck {
-  if (save.coins < def.price) return { ok: false, reason: 'coins' };
+export function findSlotFor(save: SaveData, def: CharacterDef): SlotChoice | null {
   for (let i = 0; i < save.unlocked; i++) {
-    if (!save.slots[i]?.id) return { ok: true, slot: i, replaces: null };
+    if (!save.slots[i]?.id) return { slot: i, replaces: null };
   }
   let weakest = -1;
   let weakestIncome = Infinity;
@@ -26,9 +30,16 @@ export function checkPurchase(save: SaveData, def: CharacterDef): PurchaseCheck 
     }
   }
   if (weakest >= 0 && def.income > weakestIncome) {
-    return { ok: true, slot: weakest, replaces: characterById(save.slots[weakest].id ?? '') ?? null };
+    return { slot: weakest, replaces: characterById(save.slots[weakest].id ?? '') ?? null };
   }
-  return { ok: false, reason: 'space' };
+  return null;
+}
+
+/** Можно ли купить персонажа и на какое место он сядет. */
+export function checkPurchase(save: SaveData, def: CharacterDef): PurchaseCheck {
+  if (save.coins < def.price) return { ok: false, reason: 'coins' };
+  const choice = findSlotFor(save, def);
+  return choice ? { ok: true, ...choice } : { ok: false, reason: 'space' };
 }
 
 function incomeOf(id: string | null | undefined): number {

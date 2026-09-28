@@ -7,12 +7,13 @@ import { Actor } from './actor';
 
 /**
  * walking — идёт по дорожке, его можно купить;
- * toBase — куплен и идёт к своему месту на полке;
- * seated — сидит на полке и приносит монеты.
+ * toSeat — идёт к своему месту на полке (куплен, украден или возвращается);
+ * seated — сидит на полке и приносит монеты;
+ * carried — его несут над головой (игрок или сосед-вор).
  */
-export type BrainrotState = 'walking' | 'toBase' | 'seated';
+export type BrainrotState = 'walking' | 'toSeat' | 'seated' | 'carried';
 
-const TO_BASE_SPEED = 3.6;
+const TO_SEAT_SPEED = 3.6;
 
 /** Мемный персонаж. */
 export class Brainrot extends Actor {
@@ -22,7 +23,7 @@ export class Brainrot extends Actor {
   slot = -1;
   /** Дошёл до конца дорожки — пора убрать со сцены. */
   gone = false;
-  /** Подпись над головой (для тех, кто на дорожке). */
+  /** Подпись над головой. */
   label: Label | null = null;
   private readonly path: THREE.Vector3[] = [];
   private time = Math.random() * 10;
@@ -32,10 +33,11 @@ export class Brainrot extends Actor {
     this.def = def;
   }
 
-  /** Отправляет купленного персонажа по точкам маршрута к его месту. */
+  /** Отправляет персонажа по точкам маршрута к его месту на полке. */
   sendTo(slot: number, path: readonly THREE.Vector3[]): void {
     this.slot = slot;
-    this.state = 'toBase';
+    this.state = 'toSeat';
+    this.shadow.visible = true;
     this.path.length = 0;
     this.path.push(...path.map((p) => p.clone()));
   }
@@ -44,7 +46,16 @@ export class Brainrot extends Actor {
   seatAt(slot: number, seat: THREE.Vector3): void {
     this.slot = slot;
     this.state = 'seated';
+    this.shadow.visible = true;
     this.position.copy(seat);
+  }
+
+  /** Персонажа подняли и несут: позицию каждый кадр задаёт тот, кто несёт. */
+  pickUp(): void {
+    this.state = 'carried';
+    this.slot = -1;
+    this.shadow.visible = false;
+    this.path.length = 0;
   }
 
   update(dt: number): void {
@@ -54,11 +65,18 @@ export class Brainrot extends Actor {
       this.position.x += CARPET.walkSpeed * dt;
       moving = true;
       if (this.position.x > CARPET.endX) this.gone = true;
-    } else if (this.state === 'toBase') {
+    } else if (this.state === 'toSeat') {
       moving = this.followPath(dt);
       if (!moving) this.state = 'seated';
     }
 
+    if (this.state === 'carried') {
+      // болтается над головой
+      this.sprite.setFrame(Math.floor(this.time * 8) % 2);
+      this.sprite.object.position.y = Math.abs(Math.sin(this.time * 10)) * 0.12;
+      this.sprite.setSquash(Math.sin(this.time * 10) * 0.05);
+      return;
+    }
     this.sprite.setFrame(Math.floor(this.time * (moving ? 5 : 2.2)) % 2);
     if (moving) {
       // вприпрыжку
@@ -73,7 +91,7 @@ export class Brainrot extends Actor {
 
   /** Двигается по маршруту. Возвращает false, когда дошёл. */
   private followPath(dt: number): boolean {
-    let step = TO_BASE_SPEED * dt;
+    let step = TO_SEAT_SPEED * dt;
     while (step > 0 && this.path.length > 0) {
       const target = this.path[0];
       const distance = this.position.distanceTo(target);

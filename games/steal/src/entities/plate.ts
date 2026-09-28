@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import type { Label } from '@engine/labels';
 import type { SpriteSheet } from '@engine/sprite';
 
-export type PlateState = 'locked' | 'empty' | 'ready';
-const FRAME: Record<PlateState, number> = { locked: 0, empty: 1, ready: 2 };
+/** locked — место закрыто, empty — пусто, ready — есть монеты, latch — кнопка щеколды. */
+export type PlateState = 'locked' | 'empty' | 'ready' | 'latch';
+const FRAME: Record<PlateState, number> = { locked: 0, empty: 1, ready: 2, latch: 3 };
 
 /** Плита перед местом на полке: встал на неё — собрал монеты. */
 export class Plate {

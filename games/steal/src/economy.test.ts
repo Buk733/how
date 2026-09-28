@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ECONOMY } from './config';
-import { characterById } from './data/characters';
-import { checkPurchase, sellValue, totalIncome, unlockCost } from './economy';
+import { CHARACTERS, characterById } from './data/characters';
+import { checkPurchase, findSlotFor, sellValue, totalIncome, unlockCost } from './economy';
 import { createSave } from './save';
 
 const def = (id: string) => {
@@ -40,6 +40,20 @@ describe('checkPurchase', () => {
   });
 });
 
+describe('findSlotFor', () => {
+  it('не зависит от монет: краденого можно посадить и без денег', () => {
+    const save = createSave();
+    save.coins = 0;
+    expect(findSlotFor(save, def('hamam'))).toEqual({ slot: 0, replaces: null });
+  });
+
+  it('null, если мест нет и новый не лучше самого слабого', () => {
+    const save = createSave();
+    for (let i = 0; i < save.unlocked; i++) save.slots[i].id = 'kotost';
+    expect(findSlotFor(save, def('panther'))).toBeNull();
+  });
+});
+
 describe('экономика', () => {
   it('доход — сумма доходов персонажей на полке', () => {
     const save = createSave();
@@ -60,7 +74,7 @@ describe('экономика', () => {
 
   it('чем редкее персонаж, тем он дороже и доходнее', () => {
     const order = ['common', 'rare', 'epic', 'legendary'];
-    const byRarity = order.map((r) => ['panther', 'anime-cook', 'anime-knight', 'kotost', 'diver', 'baba-chai', 'hamam'].map(def).filter((c) => c.rarity === r));
+    const byRarity = order.map((r) => CHARACTERS.filter((c) => c.rarity === r));
     for (let i = 1; i < byRarity.length; i++) {
       const cheapestHigher = Math.min(...byRarity[i].map((c) => c.price));
       const priciestLower = Math.max(...byRarity[i - 1].map((c) => c.price));

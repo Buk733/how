@@ -6,6 +6,8 @@ export class Label {
   /** Точка мира, над которой висит подпись (низ подписи). */
   readonly anchor = new THREE.Vector3();
   visible = true;
+  /** Если точка за краем экрана — прижать подпись к краю (стрелка-указатель), а не прятать. */
+  pinToEdge = false;
   private readonly layer: LabelLayer;
 
   constructor(layer: LabelLayer, className: string) {
@@ -54,9 +56,19 @@ export class LabelLayer {
   update(camera: THREE.Camera, width: number, height: number): void {
     for (const label of this.labels) {
       const p = this.projected.copy(label.anchor).project(camera);
-      const onScreen = label.visible && p.z < 1 && Math.abs(p.x) < 1.2 && Math.abs(p.y) < 1.2;
-      label.element.style.display = onScreen ? '' : 'none';
-      if (!onScreen) continue;
+      const inView = p.z < 1 && Math.abs(p.x) < 1.2 && Math.abs(p.y) < 1.2;
+      const offEdge = p.z >= 1 || Math.abs(p.x) > 0.92 || Math.abs(p.y) > 0.9;
+      const pinned = label.visible && label.pinToEdge && offEdge;
+      const shown = label.visible && (inView || pinned);
+      label.element.style.display = shown ? '' : 'none';
+      label.element.classList.toggle('edge', pinned);
+      if (!shown) continue;
+      if (pinned) {
+        // прижимаем к краю по направлению от центра экрана к цели
+        const scale = 1 / Math.max(Math.abs(p.x) / 0.85, Math.abs(p.y) / 0.8, 1);
+        p.x *= scale;
+        p.y *= scale;
+      }
       const x = ((p.x + 1) / 2) * width;
       const y = ((1 - p.y) / 2) * height;
       label.element.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;

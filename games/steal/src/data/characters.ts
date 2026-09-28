@@ -6,6 +6,8 @@ import kotostUrl from '../assets/sprites/kotost.png';
 import diverUrl from '../assets/sprites/diver.png';
 import babaChaiUrl from '../assets/sprites/baba-chai.png';
 import hamamUrl from '../assets/sprites/hamam.png';
+import kochBratanUrl from '../assets/sprites/koch-bratan.png';
+import darkDrunUrl from '../assets/sprites/dark-drun.png';
 import pantherSound from '../sounds/tantsui-pantera.mp3';
 import kotostSound from '../sounds/kotost.mp3';
 import diverSound from '../sounds/niukhai-bystree.mp3';
@@ -47,7 +49,9 @@ export const CHARACTERS: readonly CharacterDef[] = [
   { id: 'kotost', name: 'Котость', rarity: 'rare', price: 400, income: 10, sprite: kotostUrl, sound: { url: kotostSound, offset: 3.2, duration: 3 } },
   { id: 'diver', name: 'Нюхай Быстрее', rarity: 'rare', price: 750, income: 17, sprite: diverUrl, sound: { url: diverSound } },
   { id: 'baba-chai', name: 'Баба Чай', rarity: 'epic', price: 4000, income: 70, sprite: babaChaiUrl, sound: { url: babaChaiSound, offset: 0.9, duration: 1.8 } },
+  { id: 'koch-bratan', name: 'Коч Братан', rarity: 'epic', price: 7500, income: 120, sprite: kochBratanUrl },
   { id: 'hamam', name: 'Хамам', rarity: 'legendary', price: 50000, income: 600, sprite: hamamUrl },
+  { id: 'dark-drun', name: 'Тёмный Друн', rarity: 'legendary', price: 90000, income: 1000, sprite: darkDrunUrl },
 ];
 
 const byId = new Map(CHARACTERS.map((c) => [c.id, c]));

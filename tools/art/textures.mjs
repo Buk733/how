@@ -100,11 +100,12 @@ export function stone() {
 
 /** Плита сбора монет 16×16, 3 кадра: закрыто, пусто, есть монеты. */
 export function plate() {
-  const s = sheet(16, 16, 3);
+  const s = sheet(16, 16, 4);
   const styles = [
     { rim: C.slate, fill: C.shadow, mark: 'lock' },
     { rim: C.goldDark, fill: '#6e4638', mark: null },
     { rim: C.gold, fill: C.green, mark: 'coin' },
+    { rim: C.ink, fill: C.red, mark: 'latch' },
   ];
   styles.forEach((st, i) => {
     const f = s.frame(i);
@@ -115,6 +116,9 @@ export function plate() {
     }
     if (st.mark === 'lock') {
       f.grid(5, 4, ['.sss..', '.s..s.', 'yyyyyy', 'yykkyy', 'yykkyy', 'yyyyyy'], { s: C.silver, y: C.yellow, k: C.ink });
+    }
+    if (st.mark === 'latch') {
+      f.grid(5, 4, ['.www..', '.w..w.', 'wwwwww', 'wwkkww', 'wwkkww', 'wwwwww'], { w: C.white, k: C.ink });
     }
   });
   return s.img;

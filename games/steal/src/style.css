@@ -55,6 +55,8 @@ body {
 .plate-tag,
 .world-sign,
 .tutorial-pointer,
+.bot-status,
+.resident-tag,
 .float-coins,
 .float-spend {
   position: absolute;
@@ -101,6 +103,37 @@ body {
   font-size: 18px;
   letter-spacing: 2px;
   color: var(--gold);
+}
+
+.world-sign.neighbor-sign {
+  font-size: 15px;
+  color: var(--paper);
+}
+
+.lock-tag {
+  color: var(--red);
+}
+
+.resident-tag {
+  font-size: 11px;
+}
+
+.bot-status {
+  font-size: 22px;
+  text-shadow: none;
+  animation: pointer-bounce 0.5s ease-in-out infinite alternate;
+}
+
+.tutorial-pointer.edge {
+  padding-bottom: 0;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: var(--panel);
+  animation: none;
+}
+
+.tutorial-pointer.edge::after {
+  content: '';
 }
 
 .tutorial-pointer {
