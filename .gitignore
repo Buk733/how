@@ -1,0 +1,7 @@
+node_modules/
+dist/
+coverage/
+*.log
+*.local
+.DS_Store
+tools/art/preview.png
