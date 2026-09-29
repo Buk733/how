@@ -1,9 +1,13 @@
 import { formatNumber } from '@engine/format';
+import { button, element, formatWait } from './dom';
+
+/** Окна, которые открываются кнопками слева. */
+export type MenuId = 'upgrades' | 'cases' | 'wheel' | 'upgrader';
 
 export interface HudCallbacks {
   onAction(): void;
   onAttack(): void;
-  onToggleUpgrades(): void;
+  onMenu(menu: MenuId): void;
   onToggleMute(): void;
   onToggleMusic(): void;
 }
@@ -15,33 +19,21 @@ export interface ActionView {
   readonly enabled: boolean;
 }
 
-export function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ''): HTMLElementTagNameMap[K] {
-  const el = document.createElement(tag);
-  el.className = className;
-  el.textContent = text;
-  return el;
-}
+/** Кнопки окон: значок, подпись и клавиша. */
+const MENUS: readonly { readonly id: MenuId; readonly icon: string; readonly text: string; readonly key: string }[] = [
+  { id: 'upgrades', icon: '⚡', text: 'Прокачка', key: 'U' },
+  { id: 'cases', icon: '🎁', text: 'Кейсы', key: 'K' },
+  { id: 'wheel', icon: '🎡', text: 'Колесо', key: 'L' },
+  { id: 'upgrader', icon: '♨️', text: 'Парилка', key: 'P' },
+];
 
-/** Кнопка интерфейса, нажатие которой не запускает джойстик и удар мышью. */
-function button(className: string, text: string, onPress: () => void, instant = false): HTMLButtonElement {
-  const el = element('button', className, text);
-  el.type = 'button';
-  el.addEventListener('pointerdown', (event) => {
-    event.stopPropagation();
-    if (!instant) return;
-    event.preventDefault();
-    onPress();
-  });
-  if (!instant) el.addEventListener('click', () => onPress());
-  return el;
-}
-
-/** Интерфейс поверх игры: монеты, доход, кнопки действия, веника и прокачки, объявления. */
+/** Интерфейс поверх игры: монеты, доход, кнопки действия, веника и окон, объявления. */
 export class Hud {
   private readonly root: HTMLDivElement;
   private readonly coins: HTMLSpanElement;
   private readonly income: HTMLDivElement;
-  private readonly upgrades: HTMLButtonElement;
+  private readonly boost: HTMLDivElement;
+  private readonly menus = new Map<MenuId, HTMLButtonElement>();
   private readonly action: HTMLButtonElement;
   private readonly actionTitle: HTMLSpanElement;
   private readonly actionDetail: HTMLSpanElement;
@@ -54,6 +46,7 @@ export class Hud {
   private lastIncome = -1;
   private lastAction = '';
   private lastRecharge = -1;
+  private lastBoost = '';
 
   constructor(container: HTMLElement, coinIconUrl: string, callbacks: HudCallbacks) {
     this.root = element('div', 'hud');
@@ -63,14 +56,22 @@ export class Hud {
     icon.style.backgroundImage = `url("${coinIconUrl}")`;
     this.coins = element('span', 'hud-coins', '0');
     this.income = element('div', 'hud-income');
+    this.boost = element('div', 'hud-boost');
+    this.boost.hidden = true;
     const row = element('div', 'hud-wallet-row');
     row.append(icon, this.coins);
-    wallet.append(row, this.income);
+    wallet.append(row, this.income, this.boost);
 
-    this.upgrades = button('hud-upgrades', '⚡ Прокачка', () => callbacks.onToggleUpgrades());
-    this.upgrades.append(element('kbd', 'hud-key', 'U'));
+    const menus = element('div', 'hud-menus');
+    for (const menu of MENUS) {
+      const menuButton = button('hud-menu', '', () => callbacks.onMenu(menu.id));
+      menuButton.title = menu.text;
+      menuButton.append(element('span', 'hud-menu-icon', menu.icon), element('span', 'hud-menu-text', menu.text), element('kbd', 'hud-key', menu.key));
+      this.menus.set(menu.id, menuButton);
+      menus.append(menuButton);
+    }
     const left = element('div', 'hud-left');
-    left.append(wallet, this.upgrades);
+    left.append(wallet, menus);
 
     this.mute = button('hud-round hud-mute', '', () => callbacks.onToggleMute());
     this.music = button('hud-round hud-music', '🎵', () => callbacks.onToggleMusic());
@@ -102,6 +103,15 @@ export class Hud {
     }
   }
 
+  /** Ускоритель «×2 к доходу»: сколько осталось (0 — не действует). */
+  setBoost(msLeft: number): void {
+    const text = msLeft > 0 ? `⚡ ×2 доход · ${formatWait(msLeft)}` : '';
+    if (text === this.lastBoost) return;
+    this.lastBoost = text;
+    this.boost.hidden = text === '';
+    this.boost.textContent = text;
+  }
+
   setAction(view: ActionView | null): void {
     const key = view ? `${view.title}|${view.detail}|${view.enabled}` : '';
     if (key === this.lastAction) return;
@@ -123,9 +133,9 @@ export class Hud {
     this.broom.classList.toggle('disabled', !usable);
   }
 
-  /** Отметка на кнопке прокачки: есть что купить. */
-  setUpgradesBadge(show: boolean): void {
-    this.upgrades.classList.toggle('has-offer', show);
+  /** Отметка на кнопке окна: там есть что взять (бесплатный кейс, спин, доступная прокачка). */
+  setMenuBadge(menu: MenuId, show: boolean): void {
+    this.menus.get(menu)?.classList.toggle('has-offer', show);
   }
 
   setMuted(muted: boolean): void {

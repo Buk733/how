@@ -10,25 +10,26 @@ import { Rng } from '@engine/rng';
 import type { SpriteSheet, SpriteSheetDef } from '@engine/sprite';
 import { Broom } from './broom';
 import { Carpet, RARE_THEME } from './carpet';
-import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, RENDER_SHORT_SIDE, SKY_COLOR, UPGRADES } from './config';
+import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
 import type { Action, GameContext, TutorialEvent } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
 import { totalIncome } from './economy';
 import { Brainrot } from './entities/brainrot';
 import { Player } from './entities/player';
 import { Home } from './home';
+import { Menus } from './menus';
 import { BANYA_POLKA } from './music';
 import { Neighborhood } from './neighborhood';
 import { parseSave, TUTORIAL_DONE, type SaveData } from './save';
 import { Spawner } from './spawner';
-import { Hud } from './ui/hud';
-import { UpgradePanel, type UpgradeRowView } from './ui/upgrade-panel';
-import { broomStun, buyUpgrade, checkUpgrade, describeUpgrade, maxLevel, seconds, speedMultiplier, UPGRADE_IDS, type UpgradeId } from './upgrades';
+import { Hud, type MenuId } from './ui/hud';
+import { broomStun, seconds, speedMultiplier } from './upgrades';
 import { buildWorld, type World } from './world';
 import heroUrl from './assets/sprites/hero.png';
 import neighborGreenUrl from './assets/sprites/neighbor-green.png';
 import neighborPurpleUrl from './assets/sprites/neighbor-purple.png';
 import broomSwingUrl from './assets/sprites/broom-swing.png';
+import sparkleUrl from './assets/sprites/sparkle.png';
 import coinUrl from './assets/sprites/coin.png';
 import plateUrl from './assets/sprites/plate.png';
 import steamUrl from './assets/sprites/steam.png';
@@ -54,6 +55,8 @@ const BACKGROUND_MUSIC = 'background-music';
 const MUSIC_SAMPLE_RATE = 32000;
 /** Сколько миллисекунд кадра можно тратить на синтез мелодии. */
 const MUSIC_JOB_BUDGET_MS = 4;
+/** Клавиши окон. */
+const MENU_KEYS: Readonly<Record<string, MenuId>> = { KeyU: 'upgrades', KeyK: 'cases', KeyL: 'wheel', KeyP: 'upgrader' };
 
 const sheet = (url: string, frameWidth: number, frameHeight: number, pixelsPerUnit = 16): SpriteSheetDef => ({
   url,
@@ -67,6 +70,7 @@ const SHEETS = {
   neighborGreen: sheet(neighborGreenUrl, 16, 16, 12),
   neighborPurple: sheet(neighborPurpleUrl, 16, 16, 12),
   broom: sheet(broomSwingUrl, 24, 24, 20),
+  sparkle: sheet(sparkleUrl, 8, 8, 16),
   plate: sheet(plateUrl, 16, 16, 11),
   steam: sheet(steamUrl, 8, 8, 10),
   tree: sheet(treeUrl, 32, 40),
@@ -101,14 +105,17 @@ export class Game implements GameContext {
   private readonly cameraRig = new FollowCamera(CAMERA);
   private readonly input: Input;
   private readonly characterSheets: ReadonlyMap<string, SpriteSheet>;
+  private readonly sparkleSheet: SpriteSheet;
   private readonly home: Home;
   private readonly carpet: Carpet;
   private readonly neighborhood: Neighborhood;
   private readonly broom: Broom;
-  private readonly upgradePanel: UpgradePanel;
+  private readonly menus: Menus;
   private readonly resizeObserver: ResizeObserver;
   private lastFrame: number | null = null;
   private pausedByPlatform = false;
+  /** Идёт реклама — игра и звук на паузе. */
+  private adPlaying = false;
   private hidden = document.hidden;
   private dirty = false;
   private urgentSave = false;
@@ -123,7 +130,13 @@ export class Game implements GameContext {
 
   /** Загружает всё нужное и собирает игру внутри container. */
   static async create(container: HTMLElement, platform: Platform): Promise<Game> {
-    const characterDefs = Object.fromEntries(CHARACTERS.map((c) => [c.id, sheet(c.sprite, 32, 32, CHARACTER_PPU)]));
+    // обычный и золотой лист каждого персонажа: ключи «id» и «id:gold»
+    const characterDefs = Object.fromEntries(
+      CHARACTERS.flatMap((c) => [
+        [c.id, sheet(c.sprite, 32, 32, CHARACTER_PPU)],
+        [`${c.id}:gold`, sheet(c.goldSprite, 32, 32, CHARACTER_PPU)],
+      ]),
+    );
     const [sheets, characterSheets, textures, raw] = await Promise.all([
       loadSpriteSheets(SHEETS),
       loadSpriteSheets(characterDefs),
@@ -153,6 +166,7 @@ export class Game implements GameContext {
     this.container = container;
     this.platform = platform;
     this.characterSheets = characterSheets;
+    this.sparkleSheet = sheets.sparkle;
     this.audio = audio;
     this.save = save;
 
@@ -178,20 +192,16 @@ export class Game implements GameContext {
       this.audio.unlock();
       this.startMusic();
     });
-    this.input.onKey('KeyU', () => this.setUpgradesOpen(!this.upgradePanel.isOpen));
-    this.input.onKey('Escape', () => this.setUpgradesOpen(false));
+    for (const [code, menu] of Object.entries(MENU_KEYS)) this.input.onKey(code, () => this.menus.toggle(menu));
+    this.input.onKey('Escape', () => this.menus.close());
     this.hud = new Hud(container, coinUrl, {
       onAction: () => this.input.queueAction(),
       onAttack: () => this.input.queueAttack(),
-      onToggleUpgrades: () => this.setUpgradesOpen(!this.upgradePanel.isOpen),
+      onMenu: (menu) => this.menus.toggle(menu),
       onToggleMute: () => this.toggleMute(),
       onToggleMusic: () => this.toggleMusic(),
     });
-    this.upgradePanel = new UpgradePanel(
-      container,
-      (id) => this.buyUpgrade(id as UpgradeId),
-      () => this.setUpgradesOpen(false),
-    );
+    this.audio.setVolume(AUDIO.master);
     this.audio.setMuted(this.save.muted);
     this.hud.setMuted(this.save.muted);
     this.hud.setMusic(this.save.music);
@@ -201,11 +211,12 @@ export class Game implements GameContext {
     this.carpet = new Carpet(this, this.home, new Spawner(this.rng, CHARACTERS, CARPET.spawnInterval));
     this.carpet.prefill();
     this.broom = new Broom(this, sheets.broom);
+    this.menus = new Menus(container, this, this.home, () => this.showRewardedAd());
 
     platform.onPause(() => this.setPausedByPlatform(true));
     platform.onResume(() => this.setPausedByPlatform(false));
     document.addEventListener('visibilitychange', this.onVisibilityChange);
-    window.addEventListener('pagehide', this.flushSave);
+    window.addEventListener('pagehide', this.onPageHide);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -223,7 +234,7 @@ export class Game implements GameContext {
   private readonly frame = (now: number): void => {
     const dt = this.lastFrame === null ? 0 : Math.min((now - this.lastFrame) / 1000, MAX_DT);
     this.lastFrame = now;
-    if (this.pausedByPlatform || this.hidden) return;
+    if (this.paused) return;
     this.update(dt);
     this.renderer.render(this.scene, this.cameraRig.camera);
     this.labels.update(this.cameraRig.camera, this.container.clientWidth, this.container.clientHeight);
@@ -255,10 +266,13 @@ export class Game implements GameContext {
       else if (action) this.audio.blip('error');
     }
 
-    this.hud.setWallet(this.save.coins, totalIncome(this.save));
+    const clock = Date.now();
+    this.hud.setWallet(this.save.coins, totalIncome(this.save, clock));
+    this.hud.setBoost(this.save.boostUntil - clock);
     this.hud.setBroom(this.broom.recharge, !this.neighborhood.isCarrying && !this.player.isStunned);
-    this.hud.setUpgradesBadge(UPGRADE_IDS.some((id) => checkUpgrade(this.save, id).ok));
-    if (this.upgradePanel.isOpen) this.upgradePanel.render(this.upgradeRows());
+    // пока открыто окно, соседи не начинают новых набегов
+    this.neighborhood.raidsPaused = this.menus.open !== null;
+    this.menus.update();
     this.continueMusicJob();
     this.updateMusic();
     this.cameraRig.update(dt, this.player.position);
@@ -293,49 +307,29 @@ export class Game implements GameContext {
     };
   }
 
-  // ---------------------------------------------------------------- прокачка
+  // ---------------------------------------------------------------- реклама
 
-  private setUpgradesOpen(open: boolean): void {
-    if (open === this.upgradePanel.isOpen) return;
-    this.upgradePanel.setOpen(open);
-    if (open) this.upgradePanel.render(this.upgradeRows());
-  }
-
-  private upgradeRows(): UpgradeRowView[] {
-    return UPGRADE_IDS.map((id) => {
-      const level = this.save.upgrades[id];
-      const check = checkUpgrade(this.save, id);
-      const top = level >= maxLevel(id);
-      return {
-        id,
-        icon: UPGRADES[id].icon,
-        name: UPGRADES[id].name,
-        level,
-        maxLevel: maxLevel(id),
-        now: describeUpgrade(id, level),
-        next: top ? null : describeUpgrade(id, level + 1),
-        cost: top ? null : UPGRADES[id].costs[level],
-        affordable: check.ok,
-      };
-    });
-  }
-
-  private buyUpgrade(id: UpgradeId): void {
-    if (!buyUpgrade(this.save, id)) {
-      this.audio.blip('error');
-      return;
+  /** Реклама за награду: на время показа игра и звук на паузе. true — награду нужно выдать. */
+  private async showRewardedAd(): Promise<boolean> {
+    this.adPlaying = true;
+    this.applyPause();
+    try {
+      return await this.platform.showRewardedAd();
+    } catch (error) {
+      console.warn('Реклама не показалась:', error);
+      return false;
+    } finally {
+      this.adPlaying = false;
+      this.applyPause();
     }
-    this.audio.blip('unlock');
-    this.labels.float(`${UPGRADES[id].icon} ур. ${this.save.upgrades[id]}`, this.player.position.clone().setY(2.2), 'float-coins');
-    this.markDirty(true);
   }
 
   // ---------------------------------------------------------------- GameContext
 
-  createBrainrot(def: CharacterDef): Brainrot {
-    const characterSheet = this.characterSheets.get(def.id);
+  createBrainrot(def: CharacterDef, gold = false): Brainrot {
+    const characterSheet = this.characterSheets.get(gold ? `${def.id}:gold` : def.id);
     if (!characterSheet) throw new Error(`Нет спрайта для персонажа ${def.id}`);
-    const brainrot = new Brainrot(def, characterSheet);
+    const brainrot = new Brainrot(def, characterSheet, gold, this.sparkleSheet);
     this.scene.add(brainrot.root);
     return brainrot;
   }
@@ -471,7 +465,7 @@ export class Game implements GameContext {
   // ---------------------------------------------------------------- сохранение, пауза, звук
 
   private maybeSave(): void {
-    if (totalIncome(this.save) > 0) this.dirty = true;
+    if (totalIncome(this.save, Date.now()) > 0) this.dirty = true;
     if (!this.dirty) return;
     const now = performance.now();
     const interval = this.urgentSave ? this.platform.minSaveInterval : PASSIVE_SAVE_INTERVAL;
@@ -500,12 +494,26 @@ export class Game implements GameContext {
 
   private readonly onVisibilityChange = (): void => {
     this.hidden = document.hidden;
-    if (this.hidden) this.flushSave();
+    if (this.hidden) {
+      // награда из кейса или колеса не должна пропасть, если вкладку свернули посреди анимации
+      this.menus.settle();
+      this.flushSave();
+    }
     this.applyPause();
   };
 
+  private readonly onPageHide = (): void => {
+    this.menus.settle();
+    this.flushSave();
+  };
+
+  /** Игра стоит: площадка попросила паузу, идёт реклама или вкладка свёрнута. */
+  private get paused(): boolean {
+    return this.pausedByPlatform || this.adPlaying || this.hidden;
+  }
+
   private applyPause(): void {
-    const paused = this.pausedByPlatform || this.hidden;
+    const paused = this.paused;
     this.audio.setPaused(paused);
     if (paused) this.platform.gameplayStop();
     else this.platform.gameplayStart();
@@ -532,6 +540,7 @@ export class Game implements GameContext {
       home: this.home,
       neighborhood: this.neighborhood,
       broom: this.broom,
+      menus: this.menus,
       audio: this.audio,
       game: this,
     };

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Animator, type AnimationClip } from '@engine/animation';
 import { Facing, facingFromCamera } from '@engine/direction';
 import type { Label } from '@engine/labels';
+import type { PointXZ } from '@engine/math';
 import type { SpriteSheet } from '@engine/sprite';
 import { Actor, moveWithCollisions, type Obstacles } from './actor';
 import { SwingEffect } from './swing';
@@ -97,14 +98,17 @@ export class Bot extends Actor {
     return this.path.length === 0;
   }
 
-  /** Бежит прямо к цели, упираясь в стены, и останавливается в шаге от неё — не наступает на игрока. */
-  runTowards(target: THREE.Vector3, speed: number, dt: number, obstacles: Obstacles): void {
+  /**
+   * Бежит прямо к цели, скользя вдоль стен. Останавливается за stopDistance до неё:
+   * к игроку — в шаге (не наступает на него), к точке пути — вплотную.
+   */
+  runTowards(target: PointXZ, speed: number, dt: number, obstacles: Obstacles, stopDistance = STOP_DISTANCE): void {
     const dx = target.x - this.position.x;
     const dz = target.z - this.position.z;
     const distance = Math.hypot(dx, dz);
     this.face(dx, dz);
-    if (distance <= STOP_DISTANCE) return;
-    const step = Math.min(distance - STOP_DISTANCE, speed * dt);
+    if (distance <= stopDistance) return;
+    const step = Math.min(distance - stopDistance, speed * dt);
     const p = moveWithCollisions(this.position.x, this.position.z, (dx / distance) * step, (dz / distance) * step, BOT_RADIUS, obstacles);
     this.position.x = p.x;
     this.position.z = p.z;
@@ -112,7 +116,7 @@ export class Bot extends Actor {
   }
 
   /** Бьёт веником в сторону цели. */
-  swingAt(target: THREE.Vector3): void {
+  swingAt(target: PointXZ): void {
     const dx = target.x - this.position.x;
     const dz = target.z - this.position.z;
     this.face(dx, dz);

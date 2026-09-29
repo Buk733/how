@@ -9,6 +9,9 @@ export interface Obstacles {
   readonly bounds: Box;
 }
 
+/** Самый длинный шаг за раз: длинный шаг разбивается, чтобы не проскочить сквозь тонкую стену. */
+const MAX_STEP = 0.2;
+
 /** Двигает круг радиуса radius на (dx, dz), упирая его в стены, деревья и края мира. */
 export function moveWithCollisions(
   x: number,
@@ -18,9 +21,14 @@ export function moveWithCollisions(
   radius: number,
   obstacles: Obstacles,
 ): { x: number; z: number } {
-  let p = pushOutOfBoxes(x + dx, z + dz, radius, obstacles.boxes);
-  p = pushOutOfCircles(p.x, p.z, radius, obstacles.circles);
-  return clampToBox(p.x, p.z, obstacles.bounds);
+  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dz) / MAX_STEP));
+  let p = { x, z };
+  for (let i = 0; i < steps; i++) {
+    p = pushOutOfBoxes(p.x + dx / steps, p.z + dz / steps, radius, obstacles.boxes);
+    p = pushOutOfCircles(p.x, p.z, radius, obstacles.circles);
+    p = clampToBox(p.x, p.z, obstacles.bounds);
+  }
+  return p;
 }
 
 /** Как быстро гаснет отбрасывание от удара: чем больше, тем короче полёт. */

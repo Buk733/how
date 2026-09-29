@@ -21,7 +21,7 @@ export interface LoadOptions {
   readonly normalizeTo?: number;
 }
 
-export type Blip = 'coin' | 'buy' | 'unlock' | 'error' | 'alarm' | 'caught' | 'swing' | 'whack';
+export type Blip = 'coin' | 'buy' | 'unlock' | 'error' | 'alarm' | 'caught' | 'swing' | 'whack' | 'gold' | 'tick' | 'win' | 'lose';
 
 interface Voice {
   readonly source: AudioBufferSourceNode;
@@ -30,8 +30,18 @@ interface Voice {
   readonly level: number;
 }
 
-/** Ноты синтезированных звуков: [частота, задержка], и какой волной их играть. */
-const BLIPS: Record<Blip, { readonly wave: OscillatorType; readonly notes: readonly (readonly [number, number])[]; readonly length?: number }> = {
+interface BlipDef {
+  readonly wave: OscillatorType;
+  /** Ноты: [частота, задержка в секундах]. */
+  readonly notes: readonly (readonly [number, number])[];
+  /** Длина одной ноты, секунды. */
+  readonly length?: number;
+  /** Громкость в пике. */
+  readonly peak?: number;
+}
+
+/** Синтезированные звуки: какие ноты и какой волной играть. */
+const BLIPS: Record<Blip, BlipDef> = {
   coin: { wave: 'square', notes: [[988, 0], [1319, 0.06]] },
   buy: { wave: 'square', notes: [[523, 0], [659, 0.07], [784, 0.14]] },
   unlock: { wave: 'square', notes: [[392, 0], [523, 0.08], [659, 0.16], [1047, 0.24]] },
@@ -40,6 +50,10 @@ const BLIPS: Record<Blip, { readonly wave: OscillatorType; readonly notes: reado
   caught: { wave: 'square', notes: [[330, 0], [247, 0.1], [196, 0.2]] },
   swing: { wave: 'triangle', notes: [[740, 0], [520, 0.03], [330, 0.06]], length: 0.07 },
   whack: { wave: 'sawtooth', notes: [[170, 0], [110, 0.05]], length: 0.1 },
+  gold: { wave: 'triangle', notes: [[784, 0], [988, 0.06], [1175, 0.12], [1568, 0.18], [2093, 0.24]], length: 0.2, peak: 0.07 },
+  tick: { wave: 'square', notes: [[1800, 0]], length: 0.025, peak: 0.02 },
+  win: { wave: 'square', notes: [[523, 0], [659, 0.09], [784, 0.18], [1047, 0.27], [784, 0.36], [1047, 0.45]], length: 0.14 },
+  lose: { wave: 'triangle', notes: [[392, 0], [330, 0.14], [262, 0.28], [196, 0.42]], length: 0.2 },
 };
 
 /**
@@ -55,6 +69,7 @@ export class AudioManager {
   private readonly voices = new Map<string, Voice>();
   private mutedState = false;
   private paused = false;
+  private volume = 1;
 
   constructor() {
     let context: AudioContext | null = null;
@@ -152,7 +167,7 @@ export class AudioManager {
   /** Короткие синтезированные звуки интерфейса — без файлов. */
   blip(kind: Blip): void {
     if (!this.context || !this.master || this.paused) return;
-    const { wave, notes, length = 0.12 } = BLIPS[kind];
+    const { wave, notes, length = 0.12, peak = 0.05 } = BLIPS[kind];
     const now = this.context.currentTime;
     for (const [frequency, delay] of notes) {
       const osc = this.context.createOscillator();
@@ -160,7 +175,7 @@ export class AudioManager {
       osc.type = wave;
       osc.frequency.value = frequency;
       gain.gain.setValueAtTime(0.0001, now + delay);
-      gain.gain.exponentialRampToValueAtTime(0.05, now + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(peak, now + delay + Math.min(0.01, length / 3));
       gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + length);
       osc.connect(gain).connect(this.master);
       osc.start(now + delay);
@@ -170,7 +185,17 @@ export class AudioManager {
 
   setMuted(muted: boolean): void {
     this.mutedState = muted;
-    if (this.master) this.master.gain.value = muted ? 0 : 1;
+    this.applyVolume();
+  }
+
+  /** Общая громкость 0…1 — для всех звуков и музыки сразу. */
+  setVolume(volume: number): void {
+    this.volume = Math.min(1, Math.max(0, volume));
+    this.applyVolume();
+  }
+
+  private applyVolume(): void {
+    if (this.master) this.master.gain.value = this.mutedState ? 0 : this.volume;
   }
 
   setPaused(paused: boolean): void {

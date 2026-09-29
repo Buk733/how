@@ -1,9 +1,42 @@
 import * as THREE from 'three';
 import type { Label } from '@engine/labels';
-import type { SpriteSheet } from '@engine/sprite';
+import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
 import { CARPET } from '../config';
 import type { CharacterDef } from '../data/characters';
 import { Actor } from './actor';
+
+/** Блёстки «Голды»: вспыхивают по очереди в случайных местах вокруг персонажа. */
+class Sparkle {
+  private readonly sprite: BillboardSprite;
+  private time = Math.random();
+
+  constructor(sheet: SpriteSheet, parent: THREE.Object3D) {
+    this.sprite = new BillboardSprite(sheet);
+    this.sprite.object.visible = false;
+    parent.add(this.sprite.object);
+    this.jump();
+  }
+
+  update(dt: number): void {
+    const CYCLE = 0.9;
+    const FLASH = 0.45;
+    const before = this.time;
+    this.time = (this.time + dt) % CYCLE;
+    if (this.time < before) this.jump();
+    const visible = this.time < FLASH;
+    this.sprite.object.visible = visible;
+    if (visible) this.sprite.setFrame([0, 1, 2, 1, 0][Math.min(4, Math.floor((this.time / FLASH) * 5))]);
+  }
+
+  dispose(): void {
+    this.sprite.dispose();
+  }
+
+  /** Следующая вспышка — в новом месте вокруг персонажа. */
+  private jump(): void {
+    this.sprite.object.position.set((Math.random() - 0.5) * 1.1, 0.3 + Math.random() * 1.3, 0.05);
+  }
+}
 
 /**
  * walking — идёт по дорожке, его можно купить;
@@ -15,9 +48,10 @@ export type BrainrotState = 'walking' | 'toSeat' | 'seated' | 'carried';
 
 const TO_SEAT_SPEED = 3.6;
 
-/** Мемный персонаж. */
+/** Мемный персонаж (обычный или «Голда»). */
 export class Brainrot extends Actor {
   readonly def: CharacterDef;
+  readonly gold: boolean;
   state: BrainrotState = 'walking';
   /** Номер места на полке (−1 — пока нигде). */
   slot = -1;
@@ -26,11 +60,20 @@ export class Brainrot extends Actor {
   /** Подпись над головой. */
   label: Label | null = null;
   private readonly path: THREE.Vector3[] = [];
+  private readonly sparkle: Sparkle | null;
   private time = Math.random() * 10;
 
-  constructor(def: CharacterDef, sheet: SpriteSheet) {
+  /** sparkleSheet — только для «Голды»: блёстки вокруг персонажа. */
+  constructor(def: CharacterDef, sheet: SpriteSheet, gold = false, sparkleSheet: SpriteSheet | null = null) {
     super(sheet, 1.1);
     this.def = def;
+    this.gold = gold;
+    this.sparkle = gold && sparkleSheet ? new Sparkle(sparkleSheet, this.root) : null;
+  }
+
+  override dispose(): void {
+    super.dispose();
+    this.sparkle?.dispose();
   }
 
   /** Отправляет персонажа по точкам маршрута к его месту на полке. */
@@ -60,6 +103,7 @@ export class Brainrot extends Actor {
 
   update(dt: number): void {
     this.time += dt;
+    this.sparkle?.update(dt);
     let moving = false;
     if (this.state === 'walking') {
       this.position.x += CARPET.walkSpeed * dt;

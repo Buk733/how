@@ -152,6 +152,18 @@ export function steam() {
   return s.img;
 }
 
+/** Блёстка «Голды»: 3 кадра 8×8 — точка, крестик, звёздочка. */
+export function sparkle() {
+  const s = sheet(8, 8, 3);
+  const frames = [
+    ['........', '........', '........', '...ww...', '...ww...', '........', '........', '........'],
+    ['........', '........', '....y...', '...yWy..', '....y...', '........', '........', '........'],
+    ['....y...', '....y...', '...yWy..', 'yyyWWWyy', '...yWy..', '....y...', '....y...', '........'],
+  ];
+  frames.forEach((rows, i) => s.frame(i).grid(0, 0, rows, { w: C.white, W: '#fffbe6', y: C.gold }));
+  return s.img;
+}
+
 /** Круглое дерево 32×40. */
 export function tree() {
   const f = sheet(32, 40, 1);

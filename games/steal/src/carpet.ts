@@ -1,10 +1,10 @@
 import { formatNumber } from '@engine/format';
 import { distanceXZ } from '@engine/math';
-import { AUDIO, BUY_RANGE, CARPET } from './config';
+import { AUDIO, BUY_RANGE, CARPET, GOLD } from './config';
 import type { Action, GameContext } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
 import { RARITIES } from './data/rarity';
-import { checkPurchase } from './economy';
+import { checkPurchase, unitIncome, unitName, unitPrice } from './economy';
 import type { Brainrot } from './entities/brainrot';
 import type { Home } from './home';
 import { tierOf } from './neighbors';
@@ -12,6 +12,8 @@ import type { Spawner } from './spawner';
 
 /** Id фоновой музыки, которая играет, когда на дорожку выходит редкий персонаж. */
 export const RARE_THEME = 'rare-theme';
+/** Цвет «Голды» в подписях. */
+export const GOLD_COLOR = '#ffd23f';
 
 /** Мемная дорожка: персонажи идут мимо бань, их можно купить. */
 export class Carpet {
@@ -36,14 +38,14 @@ export class Carpet {
 
   update(dt: number): void {
     const next = this.spawner.update(dt);
-    if (next && this.walkers.length < CARPET.maxWalkers) this.spawn(next, CARPET.startX, true);
+    if (next && this.walkers.length < CARPET.maxWalkers) this.spawn(next, CARPET.startX, true, this.ctx.rng.chance(GOLD.carpetChance));
 
     for (let i = this.walkers.length - 1; i >= 0; i--) {
       const walker = this.walkers[i];
       walker.update(dt);
       if (walker.label) {
         walker.label.anchor.set(walker.position.x, walker.position.y + 2.05, walker.position.z);
-        walker.label.element.classList.toggle('cant-afford', this.ctx.save.coins < walker.def.price);
+        walker.label.element.classList.toggle('cant-afford', this.ctx.save.coins < unitPrice(walker.def, walker.gold));
       }
       if (walker.gone) {
         this.walkers.splice(i, 1);
@@ -66,15 +68,16 @@ export class Carpet {
     }
     if (!nearest) return null;
     const target = nearest;
-    const title = `Купить «${target.def.name}»`;
+    const price = unitPrice(target.def, target.gold);
+    const title = `Купить «${unitName(target.def, target.gold)}»`;
     if (handsFull) return { view: { title, detail: 'руки заняты — отнеси добычу в баню', enabled: false }, run: () => {} };
-    const check = checkPurchase(this.ctx.save, target.def);
+    const check = checkPurchase(this.ctx.save, target.def, target.gold);
     const detail = check.ok
       ? check.replaces
-        ? `💰 ${formatNumber(target.def.price)} · заменит «${check.replaces.name}»`
-        : `💰 ${formatNumber(target.def.price)}`
+        ? `💰 ${formatNumber(price)} · заменит «${unitName(check.replaces.def, check.replaces.gold)}»`
+        : `💰 ${formatNumber(price)}`
       : check.reason === 'coins'
-        ? `нужно 💰 ${formatNumber(target.def.price)}`
+        ? `нужно 💰 ${formatNumber(price)}`
         : 'нет мест — открой новое';
     return { view: { title, detail, enabled: check.ok }, run: () => this.buy(target) };
   }
@@ -90,43 +93,48 @@ export class Carpet {
   }
 
   private buy(walker: Brainrot): void {
-    const check = checkPurchase(this.ctx.save, walker.def);
+    const check = checkPurchase(this.ctx.save, walker.def, walker.gold);
     if (!check.ok) return;
     const { save } = this.ctx;
-    save.coins -= walker.def.price;
+    const price = unitPrice(walker.def, walker.gold);
+    save.coins -= price;
     save.stats.bought++;
     this.walkers.splice(this.walkers.indexOf(walker), 1);
     walker.label?.remove();
     walker.label = null;
     this.home.place(walker, check);
     this.ctx.playVoice(walker.def);
-    this.ctx.audio.blip('buy');
-    this.ctx.labels.float(`-${formatNumber(walker.def.price)}`, walker.position.clone().setY(2), 'float-spend');
+    this.ctx.audio.blip(walker.gold ? 'gold' : 'buy');
+    this.ctx.labels.float(`-${formatNumber(price)}`, walker.position.clone().setY(2), 'float-spend');
     if (walker === this.tutorialWalker) this.tutorialWalker = null;
     this.ctx.tutorialEvent('bought');
   }
 
-  private spawn(def: CharacterDef, x: number, announce: boolean): Brainrot {
-    const walker = this.ctx.createBrainrot(def);
+  private spawn(def: CharacterDef, x: number, announce: boolean, gold = false): Brainrot {
+    const walker = this.ctx.createBrainrot(def, gold);
     walker.position.set(x, 0, CARPET.z);
     const rarity = RARITIES[def.rarity];
-    const label = this.ctx.labels.create('walker-tag');
+    const label = this.ctx.labels.create(gold ? 'walker-tag gold' : 'walker-tag');
     const name = document.createElement('b');
     const rarityName = document.createElement('i');
     const price = document.createElement('span');
-    name.textContent = def.name;
-    name.style.color = rarity.color;
-    rarityName.textContent = rarity.name;
-    price.textContent = `💰 ${formatNumber(def.price)} · +${formatNumber(def.income)}/с`;
+    name.textContent = gold ? `✨ ${def.name}` : def.name;
+    name.style.color = gold ? GOLD_COLOR : rarity.color;
+    rarityName.textContent = gold ? `${rarity.name} · Голда` : rarity.name;
+    price.textContent = `💰 ${formatNumber(unitPrice(def, gold))} · +${formatNumber(unitIncome(def, gold))}/с`;
     label.element.append(name, rarityName, price);
     walker.label = label;
     this.walkers.push(walker);
 
-    if (announce && tierOf(def.rarity) >= tierOf(AUDIO.musicFromRarity)) {
-      this.ctx.hud.showBanner(`На дорожке ${rarity.name.toLowerCase()} «${def.name}»!`, rarity.color, 3500);
-      if (this.ctx.save.music && !this.ctx.audio.isPlaying(RARE_THEME)) {
-        this.ctx.audio.play(RARE_THEME, { volume: AUDIO.rareTheme, fadeIn: AUDIO.fadeIn, fadeOut: AUDIO.fadeOut });
-      }
+    if (!announce) return walker;
+    const rare = tierOf(def.rarity) >= tierOf(AUDIO.musicFromRarity);
+    if (gold || rare) {
+      const text = gold ? `На дорожке «Голда»: ${def.name}!` : `На дорожке ${rarity.name.toLowerCase()} «${def.name}»!`;
+      this.ctx.hud.showBanner(text, gold ? GOLD_COLOR : rarity.color, 3500);
+      if (gold) this.ctx.audio.blip('gold');
+    }
+    if (rare && this.ctx.save.music && !this.ctx.audio.isPlaying(RARE_THEME)) {
+      this.ctx.audio.play(RARE_THEME, { volume: AUDIO.rareTheme, fadeIn: AUDIO.fadeIn, fadeOut: AUDIO.fadeOut });
     }
     return walker;
   }

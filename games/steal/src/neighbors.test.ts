@@ -37,11 +37,14 @@ describe('соседи', () => {
     expect(average(tierOf('epic'))).toBeGreaterThan(average(tierOf('common')) + 1);
   });
 
-  it('полок соседа заполнен частично', () => {
+  it('полок соседа заполнен частично, «Голда» — с заданным шансом', () => {
     const roster = createNeighborRoster(new Rng(1), CHARACTERS, 0, 6);
     expect(roster).toHaveLength(6);
     expect(roster.filter(Boolean).length).toBe(4);
     expect(roster.slice(4)).toEqual([null, null]);
+    expect(roster.every((unit) => !unit?.gold)).toBe(true);
+    const golden = createNeighborRoster(new Rng(1), CHARACTERS, 0, 6, 1);
+    expect(golden.filter(Boolean).every((unit) => unit?.gold)).toBe(true);
   });
 
   it('вор выбирает самого доходного из доступных', () => {
@@ -55,8 +58,20 @@ describe('соседи', () => {
   });
 
   it('новый персонаж соседа садится на свободное место или вместо слабого', () => {
-    expect(neighborSlotFor(['panther', null, 'kotost'], def('diver'))).toBe(1);
-    expect(neighborSlotFor(['kotost', 'panther', 'diver'], def('baba-chai'))).toBe(1);
-    expect(neighborSlotFor(['kotost', 'diver'], def('panther'))).toBe(-1);
+    const unit = (id: string, gold = false) => ({ id, gold });
+    expect(neighborSlotFor([unit('panther'), null, unit('kotost')], def('diver'))).toBe(1);
+    expect(neighborSlotFor([unit('kotost'), unit('panther'), unit('diver')], def('baba-chai'))).toBe(1);
+    expect(neighborSlotFor([unit('kotost'), unit('diver')], def('panther'))).toBe(-1);
+    // «Голда» ценится вдвое: золотую пантеру не заменит обычный рыцарь
+    expect(neighborSlotFor([unit('panther', true), unit('kotost')], def('anime-cook'))).toBe(-1);
+  });
+
+  it('вор выбирает самого доходного с учётом «Голды»', () => {
+    const save = createSave();
+    save.slots[0] = { id: 'kotost', gold: false, stored: 0 };
+    save.slots[1] = { id: 'anime-knight', gold: true, stored: 0 };
+    expect(pickRaidTarget(save.slots, () => true)).toBe(0);
+    save.slots[1] = { id: 'diver', gold: true, stored: 0 };
+    expect(pickRaidTarget(save.slots, () => true)).toBe(1);
   });
 });

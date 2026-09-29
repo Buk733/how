@@ -1,5 +1,6 @@
 import { formatNumber } from '@engine/format';
-import { element } from './hud';
+import { element } from './dom';
+import { Modal } from './modal';
 
 /** Одна строка панели прокачки. */
 export interface UpgradeRowView {
@@ -15,41 +16,20 @@ export interface UpgradeRowView {
   readonly affordable: boolean;
 }
 
-/** Окно «Прокачка»: кроссовки, веник, щеколда, печь. Игра при этом не останавливается. */
+/** Окно «Прокачка»: кроссовки, веник, щеколда, печь. */
 export class UpgradePanel {
-  private readonly root: HTMLDivElement;
+  readonly modal: Modal;
   private readonly list: HTMLDivElement;
   private lastKey = '';
 
   constructor(container: HTMLElement, onBuy: (id: string) => void, onClose: () => void) {
-    this.root = element('div', 'upgrade-panel');
-    this.root.hidden = true;
-    // касания панели не должны запускать джойстик и удар мышью
-    this.root.addEventListener('pointerdown', (event) => event.stopPropagation());
-
-    const header = element('div', 'upgrade-header');
-    const close = element('button', 'upgrade-close', '✕');
-    close.type = 'button';
-    close.title = 'Закрыть';
-    close.addEventListener('click', () => onClose());
-    header.append(element('span', 'upgrade-title', '⚡ Прокачка'), close);
-
+    this.modal = new Modal(container, '⚡ Прокачка', onClose, 'upgrade-panel');
     this.list = element('div', 'upgrade-list');
     this.list.addEventListener('click', (event) => {
       const buy = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-id]');
       if (buy?.dataset.id) onBuy(buy.dataset.id);
     });
-
-    this.root.append(header, this.list, element('div', 'upgrade-hint', 'Монеты тратятся сразу, прокачка остаётся навсегда'));
-    container.append(this.root);
-  }
-
-  get isOpen(): boolean {
-    return !this.root.hidden;
-  }
-
-  setOpen(open: boolean): void {
-    this.root.hidden = !open;
+    this.modal.body.append(this.list, element('div', 'modal-hint', 'Монеты тратятся сразу, прокачка остаётся навсегда'));
   }
 
   /** Перерисовывает строки, только если что-то поменялось (уровень или хватает ли монет). */
@@ -72,7 +52,7 @@ export class UpgradePanel {
     if (view.cost === null) {
       buy = element('div', 'upgrade-max', 'МАКС');
     } else {
-      const button = element('button', 'upgrade-buy', `💰 ${formatNumber(view.cost)}`);
+      const button = element('button', 'buy-button', `💰 ${formatNumber(view.cost)}`);
       button.type = 'button';
       button.dataset.id = view.id;
       button.classList.toggle('disabled', !view.affordable);

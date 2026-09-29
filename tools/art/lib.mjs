@@ -195,6 +195,40 @@ export function encodePNG({ w, h, data }) {
   ]);
 }
 
+/** Оттенки золота от тёмного к светлому — для «Голды». */
+const GOLD_RAMP = ['#5e3510', '#8f5716', '#bf7f18', '#e3a520', '#f7c531', '#ffdc5e', '#fff0a8'].map(hex);
+const GOLD_OUTLINE = hex('#2e1a08');
+const INK = hex(C.ink);
+
+/**
+ * «Голда»: золотая копия картинки. Яркость каждого пикселя превращается в оттенок золота
+ * (яркость растягивается на всю шкалу, поэтому и чёрная пантера выходит золотой),
+ * контур и зрачки (цвет C.ink) становятся тёмно-коричневыми — персонаж как золотая статуэтка.
+ */
+export function goldify(img) {
+  const out = new Img(img.w, img.h);
+  const lights = [];
+  for (let i = 0; i < img.w * img.h; i++) {
+    if (!img.data[i * 4 + 3]) continue;
+    const [r, g, b] = img.data.subarray(i * 4, i * 4 + 3);
+    lights[i] = r === INK[0] && g === INK[1] && b === INK[2] ? -1 : (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+  const body = lights.filter((l) => l !== undefined && l >= 0);
+  const min = Math.min(...body);
+  const range = Math.max(0.05, Math.max(...body) - min);
+  lights.forEach((light, i) => {
+    if (light === undefined) return;
+    let color = GOLD_OUTLINE;
+    if (light >= 0) {
+      // самые тёмные места — густое золото, а не коричневый: статуэтка целиком золотая
+      const t = (light - min) / range;
+      color = GOLD_RAMP[Math.min(GOLD_RAMP.length - 1, 2 + Math.floor(t * (GOLD_RAMP.length - 2)))];
+    }
+    out.data.set([...color, 255], i * 4);
+  });
+  return out;
+}
+
 /** Собирает превью всех листов в одну картинку (увеличение scale) — удобно смотреть глазами. */
 export function contactSheet(images, scale = 6, background = '#c4c9d8') {
   const pad = 4;

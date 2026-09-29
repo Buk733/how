@@ -5,6 +5,8 @@
   --gold-dark: #c98a1a;
   --green: #a7f070;
   --red: #ff6b6b;
+  --silver: #94b0c2;
+  --slate: #566c86;
   --panel: rgb(26 28 44 / 0.72);
   --outline: 2px 0 var(--ink), -2px 0 var(--ink), 0 2px var(--ink), 0 -2px var(--ink), 2px 2px var(--ink),
     -2px -2px var(--ink), 2px -2px var(--ink), -2px 2px var(--ink);
@@ -95,6 +97,10 @@ body {
   color: var(--red);
 }
 
+.walker-tag.gold i {
+  color: #ffd23f;
+}
+
 .plate-tag {
   font-size: 14px;
   color: var(--gold);
@@ -123,6 +129,14 @@ body {
   font-size: 22px;
   text-shadow: none;
   animation: pointer-bounce 0.5s ease-in-out infinite alternate;
+}
+
+/* вор за краем экрана: значок прижат к краю */
+.bot-status.edge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--panel);
+  animation: none;
 }
 
 .tutorial-pointer.edge {
@@ -208,35 +222,88 @@ body {
   left: calc(12px + env(safe-area-inset-left));
   display: grid;
   justify-items: start;
-  gap: 8px;
+  gap: 6px;
 }
 
 .hud-wallet {
+  margin-bottom: 2px;
   padding: 8px 14px 8px 10px;
   border-radius: 14px;
   background: var(--panel);
 }
 
-.hud-upgrades {
+.hud-boost {
+  font-size: 14px;
+  color: var(--gold);
+}
+
+.hud-boost[hidden] {
+  display: none;
+}
+
+.hud-menus {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+}
+
+.hud-menu-icon {
+  margin-right: 6px;
+}
+
+.hud-menu {
   position: relative;
-  padding: 8px 14px;
+  min-width: 128px;
+  padding: 7px 12px;
   border: none;
   border-radius: 12px;
   background: var(--panel);
   color: var(--gold);
   font: inherit;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
+  text-align: left;
   text-shadow: var(--outline);
   pointer-events: auto;
   cursor: pointer;
 }
 
-.hud-upgrades.has-offer::after {
+.hud-menu .hud-key {
+  top: 50%;
+  left: auto;
+  right: -10px;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+  transform: translateY(-50%);
+}
+
+/* низкий экран (телефон лёжа): кнопки окон — значками в ряд */
+@media (max-height: 520px) {
+  .hud-menus {
+    grid-auto-flow: column;
+  }
+
+  .hud-menu {
+    min-width: 0;
+    padding: 5px 9px;
+    font-size: 20px;
+  }
+
+  .hud-menu-icon {
+    margin-right: 0;
+  }
+
+  .hud-menu-text {
+    display: none;
+  }
+}
+
+.hud-menu.has-offer::after {
   content: '';
   position: absolute;
   top: -4px;
-  right: -4px;
+  left: -4px;
   width: 14px;
   height: 14px;
   border: 2px solid var(--ink);
@@ -416,43 +483,44 @@ body {
   transform: translate(-50%, -50%) scale(1);
 }
 
-/* ---------- окно «Прокачка» ---------- */
+/* ---------- окна: прокачка, кейсы, колесо, парилка ---------- */
 
-.upgrade-panel {
+.modal {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(420px, calc(100vw - 24px));
+  width: min(440px, calc(100vw - 24px));
   max-height: calc(100% - 24px);
   overflow-y: auto;
+  overscroll-behavior: contain;
   transform: translate(-50%, -50%);
-  padding: 12px 14px 10px;
+  padding: 12px 14px 12px;
   border: 4px solid var(--ink);
   border-radius: 18px;
-  background: rgb(38 43 68 / 0.94);
+  background: rgb(38 43 68 / 0.96);
   color: var(--paper);
   font-weight: 800;
   z-index: 10;
 }
 
-.upgrade-panel[hidden] {
+.modal[hidden] {
   display: none;
 }
 
-.upgrade-header {
+.modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
 }
 
-.upgrade-title {
+.modal-title {
   font-size: 22px;
   color: var(--gold);
   text-shadow: var(--outline);
 }
 
-.upgrade-close {
+.modal-close {
   width: 36px;
   height: 36px;
   border: none;
@@ -463,6 +531,88 @@ body {
   font-size: 18px;
   cursor: pointer;
 }
+
+.modal-subtitle {
+  margin: 10px 0 6px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+
+.modal-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  opacity: 0.6;
+}
+
+.buy-button,
+.plain-button,
+.ad-button {
+  padding: 9px 12px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.buy-button {
+  background: var(--gold);
+  box-shadow: 0 4px 0 var(--gold-dark);
+  color: var(--ink);
+}
+
+.buy-button.free {
+  background: var(--green);
+  box-shadow: 0 4px 0 #38b764;
+}
+
+.plain-button {
+  background: var(--silver);
+  box-shadow: 0 4px 0 var(--slate);
+  color: var(--ink);
+}
+
+/* реклама всегда видно подписана и отличается цветом */
+.ad-button {
+  background: #73eff7;
+  box-shadow: 0 4px 0 #257179;
+  color: var(--ink);
+}
+
+.ad-button.active {
+  background: var(--green);
+  box-shadow: 0 4px 0 #38b764;
+}
+
+.buy-button:active,
+.plain-button:active,
+.ad-button:active {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+
+.buy-button.disabled,
+.ad-button.disabled {
+  background: var(--silver);
+  box-shadow: 0 4px 0 var(--slate);
+  color: #3d4660;
+  cursor: default;
+}
+
+.sprite-icon {
+  display: inline-block;
+  flex: none;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  image-rendering: pixelated;
+}
+
+/* прокачка */
 
 .upgrade-row {
   display: grid;
@@ -484,7 +634,7 @@ body {
 
 .upgrade-level {
   color: var(--gold);
-  font-size: 13px;
+  font-size: 12px;
   letter-spacing: 1px;
 }
 
@@ -499,39 +649,400 @@ body {
   color: var(--green);
 }
 
-.upgrade-buy {
-  min-width: 96px;
-  padding: 8px 10px;
-  border: 3px solid var(--ink);
-  border-radius: 12px;
-  background: var(--gold);
-  box-shadow: 0 4px 0 var(--gold-dark);
-  color: var(--ink);
-  font: inherit;
-  font-size: 15px;
-  cursor: pointer;
-}
-
-.upgrade-buy:active {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 var(--gold-dark);
-}
-
-.upgrade-buy.disabled {
-  background: #94b0c2;
-  box-shadow: 0 4px 0 #566c86;
+.upgrade-row .buy-button,
+.upgrade-max {
+  min-width: 104px;
 }
 
 .upgrade-max {
-  min-width: 96px;
   text-align: center;
   color: var(--green);
 }
 
-.upgrade-hint {
-  margin-top: 6px;
+/* кейсы */
+
+.case-shop {
+  display: grid;
+  gap: 10px;
+}
+
+.case-shop[hidden],
+.case-opening[hidden] {
+  display: none;
+}
+
+.case-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 3px solid var(--case-color);
+  border-radius: 14px;
+  background: rgb(26 28 44 / 0.55);
+}
+
+.case-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.case-icon {
+  font-size: 34px;
+}
+
+.case-name {
+  font-size: 18px;
+  color: var(--case-color);
+  text-shadow: var(--outline);
+}
+
+.case-price {
+  font-size: 13px;
+  color: var(--gold);
+}
+
+.case-odds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.odds-chip {
+  padding: 2px 7px;
+  border-radius: 8px;
+  background: var(--ink);
   font-size: 12px;
-  font-weight: 600;
+}
+
+.odds-chip.gold {
+  color: var(--gold);
+}
+
+.case-contents summary {
+  font-size: 13px;
+  color: var(--silver);
+  cursor: pointer;
+}
+
+.contents-list {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.contents-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.contents-chance {
+  font-variant-numeric: tabular-nums;
+  color: var(--paper);
+}
+
+.case-note {
+  font-size: 13px;
+  color: var(--green);
+}
+
+.case-note:empty,
+.case-wait:empty {
+  display: none;
+}
+
+.case-wait {
+  margin-top: -2px;
+  font-size: 12px;
   text-align: center;
-  opacity: 0.6;
+  color: var(--silver);
+}
+
+.reel {
+  position: relative;
+  height: 118px;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: #1f2238;
+}
+
+.reel-strip {
+  display: flex;
+  gap: 6px;
+  padding: 8px 0;
+  will-change: transform;
+}
+
+.reel-card {
+  display: grid;
+  flex: none;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  width: 84px;
+  height: 96px;
+  padding: 4px;
+  border-radius: 10px;
+  border-bottom: 5px solid var(--rarity);
+  background: #2f3452;
+}
+
+.reel-card.gold {
+  background: linear-gradient(160deg, #6b4a12, #2f3452 70%);
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.reel-card.winner {
+  box-shadow: inset 0 0 0 3px var(--paper);
+}
+
+.reel-name {
+  max-width: 76px;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--rarity);
+}
+
+.reel-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--gold);
+}
+
+.case-result {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-height: 90px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+.case-result-title {
+  font-size: 20px;
+  text-shadow: var(--outline);
+}
+
+.case-result.gold .case-result-title {
+  animation: pointer-bounce 0.5s ease-in-out infinite alternate;
+}
+
+.case-result-detail {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.case-result-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* колесо удачи */
+
+.wheel-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding-top: 14px;
+}
+
+.wheel-canvas {
+  max-width: 100%;
+  will-change: transform;
+}
+
+.wheel-pointer {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 26px;
+  color: var(--paper);
+  text-shadow: var(--outline);
+}
+
+.wheel-result {
+  min-height: 24px;
+  margin: 8px 0;
+  font-size: 16px;
+  text-align: center;
+  color: var(--gold);
+}
+
+.wheel-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.wheel-odds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px 12px;
+}
+
+.wheel-odds-row {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.wheel-swatch {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+}
+
+.wheel-odds-chance {
+  font-variant-numeric: tabular-nums;
+}
+
+/* парилка */
+
+.unit-row {
+  display: flex;
+  gap: 6px;
+  min-height: 104px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.unit-card {
+  position: relative;
+  display: grid;
+  flex: none;
+  justify-items: center;
+  gap: 1px;
+  width: 86px;
+  padding: 5px 4px 6px;
+  border: 3px solid transparent;
+  border-bottom-color: var(--rarity);
+  border-radius: 10px;
+  background: #2f3452;
+  cursor: pointer;
+}
+
+.unit-card.gold {
+  background: linear-gradient(160deg, #6b4a12, #2f3452 70%);
+}
+
+.unit-card.selected {
+  border-color: var(--paper);
+}
+
+.unit-name {
+  max-width: 78px;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--rarity);
+}
+
+.unit-income {
+  font-size: 10px;
+  color: var(--green);
+}
+
+.unit-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: var(--ink);
+  font-size: 11px;
+  color: var(--gold);
+}
+
+.unit-empty {
+  align-self: center;
+  font-size: 13px;
+  opacity: 0.7;
+}
+
+.heat-meter {
+  position: relative;
+  height: 30px;
+  margin-top: 12px;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: linear-gradient(90deg, #ef7d57, #b13e53);
+}
+
+.heat-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  background: #38b764;
+  transition: width 0.25s;
+}
+
+.heat-fill {
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 0;
+  border-radius: 0 6px 6px 0;
+  background: var(--paper);
+  box-shadow: 0 0 6px var(--paper);
+}
+
+.heat-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  text-shadow: var(--outline);
+}
+
+.heat-label.ok {
+  left: 8px;
+}
+
+.heat-label.hot {
+  right: 8px;
+}
+
+.heat-chance {
+  margin-top: 6px;
+  font-size: 16px;
+  text-align: center;
+  color: var(--gold);
+}
+
+.upgrader-result {
+  min-height: 22px;
+  margin: 4px 0 8px;
+  font-size: 15px;
+  text-align: center;
+}
+
+.upgrader-result.win {
+  color: var(--green);
+}
+
+.upgrader-result.lose {
+  color: var(--red);
 }

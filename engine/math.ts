@@ -102,3 +102,39 @@ export function pushOutOfBoxes(x: number, z: number, radius: number, boxes: read
 export function clampToBox(x: number, z: number, box: Box): PointXZ {
   return { x: clamp(x, box.minX, box.maxX), z: clamp(z, box.minZ, box.maxZ) };
 }
+
+/** Лежит ли точка внутри прямоугольника, расширенного на margin. */
+export function insideBox(p: PointXZ, box: Box, margin = 0): boolean {
+  return p.x >= box.minX - margin && p.x <= box.maxX + margin && p.z >= box.minZ - margin && p.z <= box.maxZ + margin;
+}
+
+/**
+ * Пересекает ли отрезок a→b прямоугольник, расширенный на inflate (толщина того, кто идёт).
+ * Прямоугольник, внутри которого отрезок начинается, не считается: от стены можно отойти.
+ */
+export function segmentHitsBox(a: PointXZ, b: PointXZ, box: Box, inflate = 0): boolean {
+  const minX = box.minX - inflate;
+  const maxX = box.maxX + inflate;
+  const minZ = box.minZ - inflate;
+  const maxZ = box.maxZ + inflate;
+  if (a.x > minX && a.x < maxX && a.z > minZ && a.z < maxZ) return false;
+  let t0 = 0;
+  let t1 = 1;
+  const axes: [number, number, number, number][] = [
+    [a.x, b.x - a.x, minX, maxX],
+    [a.z, b.z - a.z, minZ, maxZ],
+  ];
+  for (const [start, delta, min, max] of axes) {
+    if (Math.abs(delta) < 1e-9) {
+      if (start <= min || start >= max) return false;
+      continue;
+    }
+    let near = (min - start) / delta;
+    let far = (max - start) / delta;
+    if (near > far) [near, far] = [far, near];
+    t0 = Math.max(t0, near);
+    t1 = Math.min(t1, far);
+    if (t0 >= t1) return false;
+  }
+  return true;
+}

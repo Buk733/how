@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { ECONOMY, UPGRADES } from './config';
+import { ECONOMY, GOLD, UPGRADES } from './config';
 import { CHARACTERS, characterById } from './data/characters';
-import { checkPurchase, findSlotFor, sellValue, totalIncome, unlockCost } from './economy';
+import { boostActive, checkPurchase, findSlotFor, sellValue, totalIncome, unitIncome, unitName, unitPrice, unlockCost } from './economy';
 import { createSave } from './save';
 
 const def = (id: string) => {
@@ -29,7 +29,20 @@ describe('checkPurchase', () => {
     save.coins = 1000;
     ['kotost', 'panther', 'anime-knight', 'anime-cook'].forEach((id, i) => (save.slots[i].id = id));
     const check = checkPurchase(save, def('diver'));
-    expect(check).toEqual({ ok: true, slot: 1, replaces: def('panther') });
+    expect(check).toEqual({ ok: true, slot: 1, replaces: { def: def('panther'), gold: false } });
+  });
+
+  it('«Голда» дороже и доходнее, а на полке ценится выше обычной', () => {
+    const save = createSave();
+    save.coins = 100;
+    expect(checkPurchase(save, def('kotost'), true)).toEqual({ ok: false, reason: 'coins' });
+    save.coins = unitPrice(def('kotost'), true);
+    for (let i = 0; i < save.unlocked; i++) save.slots[i].id = 'kotost';
+    // обычная котость не лучше тех, что уже сидят, а «Голда» — лучше
+    expect(checkPurchase(save, def('kotost'))).toEqual({ ok: false, reason: 'space' });
+    expect(checkPurchase(save, def('kotost'), true)).toMatchObject({ ok: true, replaces: { def: def('kotost'), gold: false } });
+    expect(unitIncome(def('kotost'), true)).toBe(def('kotost').income * GOLD.incomeFactor);
+    expect(unitName(def('kotost'), true)).toBe('Котость · Голда');
   });
 
   it('не заменяет, если новый не доходнее самого слабого', () => {
@@ -69,8 +82,19 @@ describe('экономика', () => {
     expect(totalIncome(save)).toBeCloseTo(def('kotost').income * (1 + 2 * UPGRADES.stove.perLevel));
   });
 
-  it('за заменённого возвращают половину цены', () => {
+  it('«Голда» на полке — двойной доход, ускоритель — ещё ×2, пока не кончился', () => {
+    const save = createSave();
+    save.slots[0] = { id: 'kotost', gold: true, stored: 0 };
+    expect(totalIncome(save)).toBe(def('kotost').income * 2);
+    save.boostUntil = 1000;
+    expect(boostActive(save, 999)).toBe(true);
+    expect(totalIncome(save, 999)).toBe(def('kotost').income * 4);
+    expect(totalIncome(save, 1000)).toBe(def('kotost').income * 2);
+  });
+
+  it('за заменённого возвращают половину цены («Голда» — дороже)', () => {
     expect(sellValue(def('kotost'))).toBe(Math.floor(def('kotost').price * ECONOMY.sellRatio));
+    expect(sellValue(def('kotost'), true)).toBe(Math.floor(def('kotost').price * GOLD.priceFactor * ECONOMY.sellRatio));
   });
 
   it('цены открытия мест идут по порядку', () => {

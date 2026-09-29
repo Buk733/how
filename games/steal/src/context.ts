@@ -30,7 +30,8 @@ export interface GameContext {
   readonly rng: Rng;
   /** Секунды игры с запуска (без пауз). */
   readonly time: number;
-  createBrainrot(def: CharacterDef): Brainrot;
+  /** Создаёт персонажа на сцене; gold — «Голда»-версия. */
+  createBrainrot(def: CharacterDef, gold?: boolean): Brainrot;
   /** Убирает персонажа со сцены (и его подпись). Ссылки на него чистит тот, кто их хранит. */
   removeBrainrot(brainrot: Brainrot): void;
   /** Мемная фраза персонажа. */
