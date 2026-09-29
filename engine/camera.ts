@@ -33,6 +33,8 @@ export class FollowCamera {
   private distance: number;
   private targetDistance: number;
   private distanceScale = 1;
+  /** Сила тряски (в единицах мира) — гаснет сама. */
+  private shakeStrength = 0;
 
   constructor(options: FollowCameraOptions) {
     this.options = options;
@@ -64,6 +66,11 @@ export class FollowCamera {
     this.apply();
   }
 
+  /** Встряхнуть камеру (удар, укус): strength — насколько сильно, в единицах мира. */
+  shake(strength: number): void {
+    this.shakeStrength = Math.max(this.shakeStrength, strength);
+  }
+
   /** Мгновенно переносит камеру к цели, без плавного догоняния. */
   jumpTo(target: THREE.Vector3): void {
     this.focus.copy(target);
@@ -81,6 +88,7 @@ export class FollowCamera {
       damp(this.focus.y, target.y, o.followSharpness, dt),
       damp(this.focus.z, target.z, o.followSharpness, dt),
     );
+    this.shakeStrength = this.shakeStrength < 0.005 ? 0 : damp(this.shakeStrength, 0, 9, dt);
     this.apply();
   }
 
@@ -101,5 +109,10 @@ export class FollowCamera {
       this.focus.y + this.options.lookHeight,
       this.focus.z - Math.cos(this.yaw) * lead,
     );
+    if (this.shakeStrength > 0) {
+      // сдвиг без поворота: картинка дрожит, а направление взгляда то же
+      this.camera.position.x += (Math.random() * 2 - 1) * this.shakeStrength;
+      this.camera.position.y += (Math.random() * 2 - 1) * this.shakeStrength * 0.6;
+    }
   }
 }

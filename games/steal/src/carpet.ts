@@ -106,6 +106,7 @@ export class Carpet {
     this.ctx.playVoice(walker.def);
     this.ctx.audio.blip(walker.gold ? 'gold' : 'buy');
     this.ctx.labels.float(`-${formatNumber(price)}`, walker.position.clone().setY(2), 'float-spend');
+    this.ctx.fx.sparkles(walker.position, walker.gold || tierOf(walker.def.rarity) >= tierOf('epic'));
     if (walker === this.tutorialWalker) this.tutorialWalker = null;
     this.ctx.tutorialEvent('bought');
   }

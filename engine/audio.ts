@@ -21,7 +21,29 @@ export interface LoadOptions {
   readonly normalizeTo?: number;
 }
 
-export type Blip = 'coin' | 'buy' | 'unlock' | 'error' | 'alarm' | 'caught' | 'swing' | 'whack' | 'gold' | 'tick' | 'win' | 'lose';
+export type Blip =
+  | 'coin'
+  | 'buy'
+  | 'unlock'
+  | 'error'
+  | 'alarm'
+  | 'caught'
+  | 'swing'
+  | 'whack'
+  | 'gold'
+  | 'tick'
+  | 'win'
+  | 'lose'
+  | 'bark'
+  | 'whimper'
+  | 'bell'
+  | 'hiss'
+  | 'horn'
+  | 'secret'
+  | 'plop'
+  | 'creak'
+  | 'splash'
+  | 'stomp';
 
 interface Voice {
   readonly source: AudioBufferSourceNode;
@@ -31,13 +53,16 @@ interface Voice {
 }
 
 interface BlipDef {
-  readonly wave: OscillatorType;
-  /** Ноты: [частота, задержка в секундах]. */
+  /** Форма волны; noise — шум через полосовой фильтр (шипение, всплеск, топот). */
+  readonly wave: OscillatorType | 'noise';
+  /** Ноты: [частота, задержка в секундах]. Для шума частота — середина полосы фильтра. */
   readonly notes: readonly (readonly [number, number])[];
   /** Длина одной ноты, секунды. */
   readonly length?: number;
   /** Громкость в пике. */
   readonly peak?: number;
+  /** Куда уезжает высота к концу ноты: 0.6 — вниз («гав»), 1.5 — вверх («бульк»). */
+  readonly slide?: number;
 }
 
 /** Синтезированные звуки: какие ноты и какой волной играть. */
@@ -54,7 +79,20 @@ const BLIPS: Record<Blip, BlipDef> = {
   tick: { wave: 'square', notes: [[1800, 0]], length: 0.025, peak: 0.02 },
   win: { wave: 'square', notes: [[523, 0], [659, 0.09], [784, 0.18], [1047, 0.27], [784, 0.36], [1047, 0.45]], length: 0.14 },
   lose: { wave: 'triangle', notes: [[392, 0], [330, 0.14], [262, 0.28], [196, 0.42]], length: 0.2 },
+  bark: { wave: 'sawtooth', notes: [[430, 0], [400, 0.17]], length: 0.1, slide: 0.55, peak: 0.045 },
+  whimper: { wave: 'triangle', notes: [[1150, 0], [950, 0.13]], length: 0.13, slide: 0.7, peak: 0.04 },
+  bell: { wave: 'triangle', notes: [[2093, 0], [2637, 0.012], [2093, 0.2], [2637, 0.212]], length: 0.32, peak: 0.035 },
+  hiss: { wave: 'noise', notes: [[5200, 0]], length: 0.75, peak: 0.03 },
+  horn: { wave: 'square', notes: [[440, 0], [349, 0.2]], length: 0.17, peak: 0.035 },
+  secret: { wave: 'triangle', notes: [[659, 0], [784, 0.08], [988, 0.16], [1319, 0.24], [1568, 0.32], [1976, 0.4]], length: 0.2, peak: 0.05 },
+  plop: { wave: 'sine', notes: [[520, 0]], length: 0.14, slide: 2.2, peak: 0.08 },
+  creak: { wave: 'sawtooth', notes: [[95, 0], [120, 0.16]], length: 0.2, slide: 1.25, peak: 0.03 },
+  splash: { wave: 'noise', notes: [[1300, 0]], length: 0.4, peak: 0.05 },
+  stomp: { wave: 'noise', notes: [[180, 0]], length: 0.14, peak: 0.12 },
 };
+
+/** Длина общей записи белого шума для шумовых звуков, секунды. */
+const NOISE_SECONDS = 1;
 
 /**
  * Звук на Web Audio API. Браузер разрешает звук только после первого касания
@@ -67,6 +105,7 @@ export class AudioManager {
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly gains = new Map<string, number>();
   private readonly voices = new Map<string, Voice>();
+  private noiseBuffer: AudioBuffer | null = null;
   private mutedState = false;
   private paused = false;
   private volume = 1;
@@ -164,23 +203,50 @@ export class AudioManager {
     this.voices.delete(id);
   }
 
-  /** Короткие синтезированные звуки интерфейса — без файлов. */
+  /** Короткие синтезированные звуки — без файлов. */
   blip(kind: Blip): void {
-    if (!this.context || !this.master || this.paused) return;
-    const { wave, notes, length = 0.12, peak = 0.05 } = BLIPS[kind];
-    const now = this.context.currentTime;
+    const context = this.context;
+    if (!context || !this.master || this.paused) return;
+    const { wave, notes, length = 0.12, peak = 0.05, slide } = BLIPS[kind];
+    const now = context.currentTime;
     for (const [frequency, delay] of notes) {
-      const osc = this.context.createOscillator();
-      const gain = this.context.createGain();
-      osc.type = wave;
-      osc.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.0001, now + delay);
-      gain.gain.exponentialRampToValueAtTime(peak, now + delay + Math.min(0.01, length / 3));
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + length);
-      osc.connect(gain).connect(this.master);
-      osc.start(now + delay);
-      osc.stop(now + delay + length + 0.01);
+      const start = now + delay;
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.exponentialRampToValueAtTime(peak, start + Math.min(0.01, length / 3));
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + length);
+      gain.connect(this.master);
+      let source: AudioScheduledSourceNode;
+      if (wave === 'noise') {
+        const noise = context.createBufferSource();
+        noise.buffer = this.noise(context);
+        const filter = context.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = frequency;
+        filter.Q.value = 0.9;
+        noise.connect(filter).connect(gain);
+        source = noise;
+      } else {
+        const osc = context.createOscillator();
+        osc.type = wave;
+        osc.frequency.setValueAtTime(frequency, start);
+        if (slide) osc.frequency.exponentialRampToValueAtTime(frequency * slide, start + length);
+        osc.connect(gain);
+        source = osc;
+      }
+      source.start(start);
+      source.stop(start + length + 0.01);
     }
+  }
+
+  /** Общая запись белого шума (создаётся один раз). */
+  private noise(context: AudioContext): AudioBuffer {
+    if (this.noiseBuffer) return this.noiseBuffer;
+    const buffer = context.createBuffer(1, Math.round(context.sampleRate * NOISE_SECONDS), context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    this.noiseBuffer = buffer;
+    return buffer;
   }
 
   setMuted(muted: boolean): void {

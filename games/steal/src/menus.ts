@@ -9,6 +9,7 @@ import { RARITIES } from './data/rarity';
 import { sellValue, totalIncome, unitIncome, unitName } from './economy';
 import type { Home, RewardResult } from './home';
 import { characterNearTier, playerPower } from './neighbors';
+import { describeRivals } from './rivals';
 import { CasePanel, type CaseCardView, type CaseResultView, type ReelItem } from './ui/case-panel';
 import type { MenuId } from './ui/hud';
 import type { Modal } from './ui/modal';
@@ -122,6 +123,7 @@ export class Menus {
     switch (this.current) {
       case 'upgrades':
         this.upgrades.render(this.upgradeRows());
+        this.upgrades.setNote(describeRivals(this.ctx.save.stats.peakIncome));
         break;
       case 'cases':
         this.cases.render(this.caseCards());

@@ -20,6 +20,7 @@ export interface UpgradeRowView {
 export class UpgradePanel {
   readonly modal: Modal;
   private readonly list: HTMLDivElement;
+  private readonly note: HTMLDivElement;
   private lastKey = '';
 
   constructor(container: HTMLElement, onBuy: (id: string) => void, onClose: () => void) {
@@ -29,7 +30,13 @@ export class UpgradePanel {
       const buy = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-id]');
       if (buy?.dataset.id) onBuy(buy.dataset.id);
     });
-    this.modal.body.append(this.list, element('div', 'modal-hint', 'Монеты тратятся сразу, прокачка остаётся навсегда'));
+    this.note = element('div', 'upgrade-note');
+    this.modal.body.append(this.list, this.note, element('div', 'modal-hint', 'Монеты тратятся сразу, прокачка остаётся навсегда'));
+  }
+
+  /** Строка под списком: какого уровня сейчас соседи. */
+  setNote(text: string): void {
+    if (this.note.textContent !== text) this.note.textContent = text;
   }
 
   /** Перерисовывает строки, только если что-то поменялось (уровень или хватает ли монет). */

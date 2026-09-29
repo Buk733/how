@@ -3,6 +3,7 @@ import type { AudioManager } from '@engine/audio';
 import type { LabelLayer } from '@engine/labels';
 import type { Rng } from '@engine/rng';
 import type { CharacterDef } from './data/characters';
+import type { Effects } from './effects';
 import type { Brainrot } from './entities/brainrot';
 import type { Player } from './entities/player';
 import type { SaveData } from './save';
@@ -28,6 +29,8 @@ export interface GameContext {
   readonly world: World;
   readonly player: Player;
   readonly rng: Rng;
+  /** Блёстки, пыль, пар, летящие монеты и тряска камеры. */
+  readonly fx: Effects;
   /** Секунды игры с запуска (без пауз). */
   readonly time: number;
   /** Создаёт персонажа на сцене; gold — «Голда»-версия. */

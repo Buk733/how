@@ -1,4 +1,4 @@
-// Текстуры мира (тайлы) и декор: трава, доски, брёвна, ковёр, камень, плиты сбора, монета, пар, деревья.
+// Текстуры мира (тайлы) и мелкий декор: трава, доски, брёвна, ковёр, камень, плиты сбора, монета, пар, блёстки, ведро.
 import { C, Img, sheet, rng } from './lib.mjs';
 
 /** Бесшовная трава 32×32. */
@@ -162,66 +162,6 @@ export function sparkle() {
   ];
   frames.forEach((rows, i) => s.frame(i).grid(0, 0, rows, { w: C.white, W: '#fffbe6', y: C.gold }));
   return s.img;
-}
-
-/** Круглое дерево 32×40. */
-export function tree() {
-  const f = sheet(32, 40, 1);
-  const rand = rng(7);
-  const fr = f.frame(0);
-  for (let y = 22; y <= 38; y++)
-    for (let x = 13; x <= 18; x++) fr.set(x, y, x === 13 ? C.barkLight : x >= 17 ? C.barkDark : C.bark);
-  const blobs = [[16, 12, 10.5], [8.5, 18, 7], [23.5, 18, 7], [16, 21, 8.5], [11, 9, 6], [21, 9, 6]];
-  const inside = (x, y) => blobs.some(([bx, by, r]) => (x + 0.5 - bx) ** 2 + (y + 0.5 - by) ** 2 <= r * r);
-  for (let y = 0; y < 30; y++)
-    for (let x = 0; x < 32; x++) {
-      if (!inside(x, y)) continue;
-      let l = -(((x - 16) / 14) * 0.55 + ((y - 15) / 14) * 0.85) + (rand() - 0.5) * 0.35;
-      if (!inside(x, y + 2)) l -= 0.35;
-      fr.set(x, y, l > 0.42 ? C.lime : l < -0.3 ? C.teal : C.green);
-    }
-  fr.outline();
-  return f.img;
-}
-
-/** Ель 24×40. */
-export function pine() {
-  const f = sheet(24, 40, 1);
-  const fr = f.frame(0);
-  const rand = rng(11);
-  for (let y = 30; y <= 38; y++) for (let x = 10; x <= 13; x++) fr.set(x, y, x >= 12 ? C.barkDark : C.bark);
-  for (const t of [{ top: 1, bottom: 13, half: 6 }, { top: 7, bottom: 22, half: 8.5 }, { top: 14, bottom: 31, half: 10.5 }])
-    for (let y = t.top; y <= t.bottom; y++) {
-      const half = 0.8 + ((y - t.top) / (t.bottom - t.top)) * t.half;
-      for (let x = 0; x < 24; x++) {
-        const dx = x + 0.5 - 12;
-        if (Math.abs(dx) > half) continue;
-        const n = (rand() - 0.5) * 0.4;
-        let c = C.teal;
-        if (dx / half + n < -0.35) c = C.green;
-        if (dx / half + n > 0.45 || y >= t.bottom - 1) c = C.navy;
-        fr.set(x, y, c);
-      }
-    }
-  fr.outline();
-  return f.img;
-}
-
-/** Куст с ягодами 16×12. */
-export function bush() {
-  const f = sheet(16, 12, 1);
-  const fr = f.frame(0);
-  const rand = rng(5);
-  const blobs = [[5, 7.5, 3.8], [11, 7.5, 3.8], [8, 5.5, 4.2]];
-  for (let y = 0; y <= 10; y++)
-    for (let x = 0; x < 16; x++) {
-      if (!blobs.some(([bx, by, r]) => (x + 0.5 - bx) ** 2 + (y + 0.5 - by) ** 2 <= r * r)) continue;
-      const l = -((x - 8) / 8) * 0.5 - ((y - 6) / 6) * 0.9 + (rand() - 0.5) * 0.4;
-      fr.set(x, y, l > 0.5 ? C.lime : l < -0.35 || y === 10 ? C.teal : C.green);
-    }
-  for (const [x, y] of [[5, 6], [10, 5], [12, 8]]) fr.set(x, y, C.red);
-  fr.outline();
-  return f.img;
 }
 
 /** Ведро-шайка для декора бани 16×16. */

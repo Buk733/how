@@ -3,9 +3,9 @@ import { formatNumber } from '@engine/format';
 import type { Label } from '@engine/labels';
 import { distanceXZ, insideBox, segmentHitsBox, type Box, type PointXZ } from '@engine/math';
 import { NavGrid } from '@engine/pathfinding';
-import type { SpriteSheet } from '@engine/sprite';
+import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
 import { GOLD_COLOR } from './carpet';
-import { BOT, GOLD, NEIGHBORS, PLAYER, RAID, STEAL_RANGE } from './config';
+import { BOT, GOLD, NEIGHBORS, PLAYER, RAID, RIVALS, STEAL_RANGE } from './config';
 import type { Action, GameContext } from './context';
 import { CHARACTERS, characterById, type CharacterDef } from './data/characters';
 import { RARITIES } from './data/rarity';
@@ -13,10 +13,13 @@ import { findSlotFor, unitIncome, unitName } from './economy';
 import type { Obstacles } from './entities/actor';
 import type { Brainrot } from './entities/brainrot';
 import { Bot, type BotState } from './entities/bot';
+import { GuardDog } from './guard-dog';
 import type { Home } from './home';
-import { createNeighborRoster, neighborSlotFor, neighborUnitIncome, playerPower, rollNeighborCharacter } from './neighbors';
+import { createNeighborRoster, neighborSlotFor, neighborUnitIncome, playerPower, rollNeighborCharacter, tierOf } from './neighbors';
+import { chaseSpeed, levelNews, rivalLevel, rivalStats, stunOn, type RivalStats } from './rivals';
 import { TUTORIAL_DONE, type UnitSave } from './save';
-import { speedMultiplier } from './upgrades';
+import { element } from './ui/dom';
+import { seconds, speedMultiplier } from './upgrades';
 import type { BanyaLayout } from './world';
 
 /** Сосед занимает места со 2-го по 7-е — середину своей скамьи. */
@@ -38,7 +41,32 @@ const AWAKE_AT_HOME: ReadonlySet<BotState> = new Set<BotState>(['idle', 'notice'
 const HOSTILE: ReadonlySet<BotState> = new Set<BotState>(['notice', 'guard', 'alert', 'chase', 'swing', 'raidGo', 'raidWait', 'raidEnter', 'raidEscape']);
 const RAIDING: ReadonlySet<BotState> = new Set<BotState>(['raidGo', 'raidWait', 'raidEnter', 'raidEscape']);
 
+/** Реплики соседей — по одной случайной на каждое событие. */
+const LINES = {
+  notice: ['Эй! Ты чего тут?', 'А ну выйди из моей бани!', 'Это моя баня!', 'Кто тут шастает?'],
+  alert: ['Вор!', 'Отдай!', 'Стой, ворюга!', 'Верни моё!'],
+  wake: ['А? Что? Кто?!', 'Проспал! Вор!', 'Кто тут?!'],
+  swing: ['Получай!', 'Кыш!', 'На!'],
+  stunned: ['Ай!', 'Ой-ой!', 'Ауч!', 'За что?!'],
+  caught: ['То-то же!', 'Моё!', 'Не трогай чужое!'],
+  giveUp: ['Ну, погоди!', 'Я запомнил!', 'Я тебе ещё покажу!'],
+  grab: ['Хи-хи!', 'Теперь моё!', 'Я быстренько!'],
+  beaten: ['Ой, всё!', 'Ухожу, ухожу!'],
+  locked: ['Закрыто?!', 'Эх, закрыто…'],
+  stashed: ['Хе-хе, моё!', 'Отличный улов!'],
+  levelUp: ['Я стал сильнее!', 'Кто теперь крутой?', 'Прокачался!'],
+} as const;
+
+/** Картинки соседей: сами боты, их собаки (по одной на соседа), веник и колокольчик. */
+export interface NeighborSheets {
+  readonly bots: readonly SpriteSheet[];
+  readonly dogs: readonly SpriteSheet[];
+  readonly broom: SpriteSheet;
+  readonly bell: SpriteSheet;
+}
+
 interface Neighbor {
+  readonly config: (typeof NEIGHBORS)[number];
   readonly name: string;
   readonly genitive: string;
   readonly layout: BanyaLayout;
@@ -46,10 +74,21 @@ interface Neighbor {
   readonly slots: (UnitSave | null)[];
   readonly residents: (Brainrot | null)[];
   readonly bot: Bot;
+  /** Собака у будки (появляется с уровня RIVALS.dogLevel). */
+  readonly dog: GuardDog;
+  /** Колокольчик у входа (с уровня RIVALS.bellLevel) и сколько ещё он звенит. */
+  readonly bell: BillboardSprite;
+  bellRing: number;
+  /** Вторая строка таблички: уровень и характер. */
+  readonly signLevel: HTMLSpanElement;
   /** Табличка над входом, пока баня закрыта на щеколду. */
   readonly latchLabel: Label;
   /** Где хозяин выгоняет игрока: баня и немного перед входом. */
   readonly guardZone: Box;
+  /** Уровень соседа и что он умеет. */
+  stats: RivalStats;
+  /** Затаил обиду: игрок у него украл — скоро придёт мстить. */
+  grudge: boolean;
   refillTimer: number;
   /** Набег: какое место у игрока хотим украсть и кого уже несём. */
   raidSlot: number;
@@ -74,9 +113,15 @@ interface Loot {
   readonly slot: number;
 }
 
+/** Кого можно шлёпнуть веником рядом с игроком: имя и что будет. */
+export interface HitTarget {
+  readonly name: string;
+  readonly detail: string;
+}
+
 /**
  * Соседи-боты: их бани и персонажи, кражи у них, охрана и погоня с веником,
- * щеколды соседей и их набеги на баню игрока.
+ * щеколды, собаки и колокольчики соседей, их прокачка и набеги на баню игрока.
  */
 export class Neighborhood {
   readonly neighbors: Neighbor[];
@@ -91,48 +136,64 @@ export class Neighborhood {
   private raidTimer: number = RAID.firstDelay;
   private tutorialTheft: { neighbor: Neighbor; brainrot: Brainrot } | null = null;
   private broomHints = 0;
+  private dogHints = 0;
 
-  constructor(ctx: GameContext, home: Home, botSheets: readonly SpriteSheet[], broomSheet: SpriteSheet) {
+  constructor(ctx: GameContext, home: Home, sheets: NeighborSheets) {
     this.ctx = ctx;
     this.home = home;
     this.nav = new NavGrid(ctx.world, 0.3, 0.5);
     const { save, rng } = ctx;
     if (save.neighbors.length !== NEIGHBORS.length) {
       const power = playerPower(save.slots);
-      save.neighbors = NEIGHBORS.map(() => ({ slots: createNeighborRoster(rng, CHARACTERS, power, BOT.slots, GOLD.neighborChance) }));
+      save.neighbors = NEIGHBORS.map((config) => ({
+        slots: createNeighborRoster(rng, CHARACTERS, power, BOT.slots, GOLD.neighborChance, config.loot),
+      }));
     }
     this.neighbors = NEIGHBORS.map((config, i) => {
       const layout = ctx.world.neighbors[i];
       const sign = ctx.labels.create('world-sign neighbor-sign');
-      sign.element.textContent = `БАНЯ ${config.genitive.toUpperCase()}`;
+      const signLevel = element('span', 'sign-level');
+      sign.element.append(element('span', 'sign-name', `БАНЯ ${config.genitive.toUpperCase()}`), signLevel);
       sign.anchor.copy(layout.signAnchor);
       const latchLabel = ctx.labels.create('plate-tag lock-tag');
       latchLabel.anchor.set(layout.centerX, 1.9, layout.interior.maxZ);
       latchLabel.visible = false;
-      const bot = new Bot(botSheets[i], ctx.labels.create('bot-status'), broomSheet);
+      const bot = new Bot(sheets.bots[i], ctx.labels.create('bot-status'), ctx.labels.create('say-bubble'), sheets.broom);
       bot.position.copy(this.homeSpot(layout));
-      bot.setState('idle', rng.range(...BOT.awakeTime));
       ctx.scene.add(bot.root);
+      const bell = new BillboardSprite(sheets.bell);
+      bell.object.position.copy(layout.bell);
+      ctx.scene.add(bell.object);
+      const stats = rivalStats(rivalLevel(save.stats.peakIncome, config.levelOffset), config);
       const neighbor: Neighbor = {
+        config,
         name: config.name,
         genitive: config.genitive,
         layout,
         slots: save.neighbors[i].slots,
         residents: [],
         bot,
+        dog: new GuardDog(ctx, sheets.dogs[i], config.dog, layout.kennel, ctx.world),
+        bell,
+        bellRing: 0,
+        signLevel,
         latchLabel,
         guardZone: { ...layout.interior, maxZ: layout.interior.maxZ + GUARD_PORCH },
+        stats,
+        grudge: false,
         refillTimer: rng.range(...BOT.refillInterval),
         raidSlot: -1,
         raidLoot: null,
         latched: false,
-        latchTimer: rng.range(...BOT.latchOpen),
+        latchTimer: rng.range(...stats.latchOpen),
         swingFrom: 'guard',
         chaseStart: 0,
         fleeing: false,
         route: null,
         repath: 0,
       };
+      this.applyStats(neighbor, stats);
+      bot.setState('idle', rng.range(...stats.awakeTime));
       neighbor.slots.forEach((unit, slot) => {
         const def = unit ? characterById(unit.id) : undefined;
         neighbor.residents[slot] = def && unit ? this.seatResident(neighbor, slot, def, unit.gold) : null;
@@ -158,9 +219,12 @@ export class Neighborhood {
         // подписи соседних мест — на разной высоте, чтобы не налезали друг на друга
         r.label?.anchor.set(r.position.x, r.position.y + 1.9 + (slot % 2) * 0.45, r.position.z);
       });
+      this.updateLevel(n);
       this.updateLatch(n, dt);
       this.updateRefill(n, dt);
       this.updateBot(n, dt);
+      this.updateDog(n, dt);
+      this.updateBell(n, dt);
     }
     this.updateCarried(dt);
     this.updateRaids(dt);
@@ -174,28 +238,36 @@ export class Neighborhood {
     return { boxes: [...world.boxes, ...closed.map((n) => n.layout.latchBox)], circles: world.circles, bounds: world.bounds };
   }
 
-  /** Ближайший враждебный сосед в радиусе range, до которого не мешает стена. */
-  hostileNear(center: PointXZ, range: number): { readonly name: string } | null {
-    let best: Neighbor | null = null;
+  /** Ближайший враждебный сосед или собака в радиусе range, до кого не мешает стена. */
+  hostileNear(center: PointXZ, range: number, playerStun: number): HitTarget | null {
+    let best: HitTarget | null = null;
     let bestDistance = range;
+    const consider = (position: PointXZ, target: HitTarget) => {
+      const distance = distanceXZ(position, center);
+      if (distance > bestDistance || !this.clearShot(center, position)) return;
+      best = target;
+      bestDistance = distance;
+    };
     for (const n of this.neighbors) {
-      if (!HOSTILE.has(n.bot.state) || !this.clearShot(center, n.bot.position)) continue;
-      const distance = distanceXZ(n.bot.position, center);
-      if (distance <= bestDistance) {
-        best = n;
-        bestDistance = distance;
-      }
+      if (HOSTILE.has(n.bot.state)) consider(n.bot.position, { name: n.name, detail: `${n.name} — оглушить на ${seconds(stunOn(playerStun, n.stats))}` });
+      if (n.dog.hostile) consider(n.dog.position, { name: n.dog.name, detail: `${n.dog.name} — прогнать в будку` });
     }
     return best;
   }
 
-  /** Удар веника игрока: оглушает соседей в радиусе range (не через стену). Возвращает, скольких задел. */
-  hitAround(center: PointXZ, range: number, stun: number): number {
+  /** Удар веника игрока: оглушает соседей и прогоняет собак в радиусе range (не через стену). Возвращает, скольких задел. */
+  hitAround(center: PointXZ, range: number, playerStun: number): number {
     let hits = 0;
     for (const n of this.neighbors) {
-      if (distanceXZ(n.bot.position, center) > range || !this.clearShot(center, n.bot.position)) continue;
-      this.onBroomHit(n, center, stun);
-      hits++;
+      if (distanceXZ(n.bot.position, center) <= range && this.clearShot(center, n.bot.position)) {
+        this.onBroomHit(n, center, stunOn(playerStun, n.stats));
+        hits++;
+      }
+      const dog = n.dog;
+      if (dog.present && dog.body.root.visible && distanceXZ(dog.position, center) <= range && this.clearShot(center, dog.position)) {
+        dog.hit(center);
+        hits++;
+      }
     }
     return hits;
   }
@@ -223,7 +295,9 @@ export class Neighborhood {
     const detail = !room
       ? 'нет места в бане — открой новое'
       : state === 'sleeping'
-        ? `${n.name} спит — тихо!`
+        ? n.stats.bell
+          ? `${n.name} спит, но звякнет колокольчик — беги!`
+          : `${n.name} спит — тихо!`
         : state === 'stunned'
           ? `${n.name} оглушён — хватай и беги!`
           : AWAKE_AT_HOME.has(state)
@@ -233,7 +307,7 @@ export class Neighborhood {
   }
 
   /**
-   * Для обучения: лучший персонаж у ближайшего соседа. Хозяин спит, а щеколда открыта,
+   * Для обучения: лучший персонаж у ближайшего соседа. Хозяин и собака спят, а щеколда открыта,
    * чтобы первая кража точно получилась.
    */
   tutorialTarget(): Brainrot | null {
@@ -257,10 +331,31 @@ export class Neighborhood {
     const state = n.bot.state;
     // спит с запасом: даже с дальнего места игрок успеет донести добычу
     if (state === 'idle' || state === 'notice' || state === 'guard' || (state === 'sleeping' && n.bot.timer < 15)) n.bot.setState('sleeping', 40);
+    n.dog.sleep(40);
     if (n.latched) {
       n.latched = false;
       n.latchTimer = 40;
     }
+  }
+
+  // ---------------------------------------------------------------- прокачка соседа
+
+  /** Уровень соседа растёт вместе с лучшим доходом игрока. */
+  private updateLevel(n: Neighbor): void {
+    const level = rivalLevel(this.ctx.save.stats.peakIncome, n.config.levelOffset);
+    if (level === n.stats.level) return;
+    const grew = level > n.stats.level;
+    this.applyStats(n, rivalStats(level, n.config));
+    if (!grew) return;
+    n.bot.say(LINES.levelUp, 2.5);
+    this.ctx.hud.showBanner(`${n.name} прокачался до ${level}-го уровня — ${levelNews(level)}!`, '#c07bff', 3500);
+  }
+
+  private applyStats(n: Neighbor, stats: RivalStats): void {
+    n.stats = stats;
+    n.dog.setPresent(stats.dog);
+    n.bell.object.visible = stats.bell;
+    n.signLevel.textContent = `ур. ${stats.level} · ${n.config.trait}${stats.dog ? ' · 🐕' : ''}${stats.bell ? ' · 🔔' : ''}`;
   }
 
   // ---------------------------------------------------------------- кража игроком
@@ -279,10 +374,15 @@ export class Neighborhood {
     const state = n.bot.state;
     if (AWAKE_AT_HOME.has(state)) {
       n.bot.setState('alert');
+      n.bot.say(LINES.alert);
       this.ctx.audio.blip('alarm');
       this.ctx.hud.showBanner(`${n.name} заметил! Беги в свою баню!`, '#ff6b6b');
     } else if (state === 'stunned') {
       this.ctx.hud.showBanner(`${n.name} сейчас очнётся — беги в свою баню!`, '#ffcd75');
+    } else if (n.stats.bell) {
+      this.ringBell(n);
+      if (state === 'sleeping') n.bot.timer = Math.min(n.bot.timer, RIVALS.bellWake);
+      this.ctx.hud.showBanner(state === 'sleeping' ? `Колокольчик! ${n.name} сейчас проснётся — беги!` : 'Неси в свою баню!', '#ffcd75');
     } else {
       this.ctx.hud.showBanner('Неси в свою баню!', '#a7f070');
     }
@@ -305,8 +405,16 @@ export class Neighborhood {
     this.ctx.audio.blip('unlock');
     const { def, gold } = loot.brainrot;
     this.ctx.hud.showBanner(`Украл «${unitName(def, gold)}»! +${formatNumber(unitIncome(def, gold))}/с`, gold ? GOLD_COLOR : '#a7f070');
-    const state = loot.from.bot.state;
-    if (state === 'alert' || state === 'chase' || state === 'swing') this.sendHome(loot.from, '😤');
+    this.ctx.fx.sparkles(loot.brainrot.position, gold || tierOf(def.rarity) >= tierOf('epic'));
+    const owner = loot.from;
+    const state = owner.bot.state;
+    if (state === 'alert' || state === 'chase' || state === 'swing') this.sendHome(owner, '😤');
+    // обокраденный запомнит — и скоро придёт мстить (кроме первой, обучающей кражи)
+    if (this.ctx.save.tutorial >= TUTORIAL_DONE) {
+      owner.bot.say(LINES.giveUp, 2.5);
+      owner.grudge = true;
+      this.raidTimer = Math.min(this.raidTimer, this.ctx.rng.range(...RIVALS.revengeDelay));
+    }
     this.ctx.tutorialEvent('stolen');
   }
 
@@ -315,16 +423,17 @@ export class Neighborhood {
     const loot = this.carried;
     if (!loot) return;
     this.carried = null;
-    this.ctx.player.stun(PLAYER.stunTime);
+    this.ctx.player.stun(PLAYER.stunTime + n.stats.hitStun - BOT.hitStun);
     this.ctx.audio.blip('caught');
     this.ctx.hud.showBanner(`${n.name} огрел тебя веником! «${unitName(loot.brainrot.def, loot.brainrot.gold)}» вернулся на место`, '#ff6b6b');
     this.returnToNeighbor(loot.from, loot.brainrot, loot.slot);
     this.sendHome(n, '😏');
+    n.bot.say(LINES.caught);
     const owner = loot.from.bot.state;
     if (loot.from !== n && (owner === 'alert' || owner === 'chase' || owner === 'swing')) this.sendHome(loot.from, '😏');
   }
 
-  // ---------------------------------------------------------------- веник
+  // ---------------------------------------------------------------- веник, собака, колокольчик
 
   /** Нет ли стены между точками (веник и замах через стену не бьют). */
   private clearShot(a: PointXZ, b: PointXZ): boolean {
@@ -340,8 +449,10 @@ export class Neighborhood {
     if (raiding) n.raidSlot = -1;
     bot.setState('stunned', stun);
     bot.knock(bot.position.x - from.x, bot.position.z - from.z, 0.9);
+    bot.say(raiding ? LINES.beaten : LINES.stunned, 1.2);
     this.ctx.labels.float('Шлёп!', bot.position.clone().setY(2.2), 'float-hit', 800);
     this.ctx.audio.blip('whack');
+    this.ctx.fx.shake(0.12);
     if (loot) {
       this.home.recover(loot);
       this.ctx.audio.blip('unlock');
@@ -375,13 +486,40 @@ export class Neighborhood {
     player.knock(player.position.x - bot.position.x, player.position.z - bot.position.z, PLAYER.knockback);
     this.ctx.labels.float('Шлёп!', player.position.clone().setY(2), 'float-hit', 800);
     this.ctx.audio.blip('whack');
+    this.ctx.fx.shake(0.3);
     if (this.carried) {
       this.catchPlayer(n);
       return;
     }
-    player.stun(BOT.hitStun);
+    player.stun(n.stats.hitStun);
     this.ctx.hud.showBanner(`${n.name} выгоняет тебя веником!`, '#ff6b6b');
     bot.setState('guard', 0.6); // постоит, потом снова выгонять
+  }
+
+  /** Собака лает на вора и будит хозяина. */
+  private updateDog(n: Neighbor, dt: number): void {
+    const alarmed = this.carried?.from === n || insideBox(this.ctx.player.position, n.guardZone);
+    const event = n.dog.update(dt, alarmed);
+    if (event === 'bark' && n.bot.state === 'sleeping') this.wakeUp(n);
+    if (event === 'bite' && this.dogHints < 1) {
+      this.dogHints++;
+      this.ctx.hud.showBanner(`${n.dog.name} кусается! Шлёпни его веником — спрячется в будку`, '#ffcd75', 3500);
+    }
+  }
+
+  private ringBell(n: Neighbor): void {
+    n.bellRing = 1.2;
+    this.ctx.audio.blip('bell');
+    this.ctx.labels.float('Дзынь!', n.layout.bell.clone().setY(2.3), 'float-hit', 900);
+  }
+
+  private updateBell(n: Neighbor, dt: number): void {
+    if (n.bellRing <= 0) {
+      n.bell.setFrame(0);
+      return;
+    }
+    n.bellRing -= dt;
+    n.bell.setFrame(Math.floor(n.bellRing * 12) % 2 ? 1 : 2);
   }
 
   // ---------------------------------------------------------------- набеги на игрока
@@ -391,17 +529,22 @@ export class Neighborhood {
     if (!ready || this.raidsPaused) return;
     this.raidTimer -= dt;
     if (this.raidTimer > 0) return;
-    const candidates = this.neighbors.filter((n) => n.bot.state === 'idle' && !this.intruderIn(n));
+    const available = (n: Neighbor) => n.bot.state === 'idle' && !this.intruderIn(n);
+    // обиженный сосед идёт мстить первым
+    const avenger = this.neighbors.find((n) => n.grudge && available(n));
+    const candidates = avenger ? [avenger] : this.neighbors.filter(available);
     const target = this.home.raidTarget();
     if (candidates.length === 0 || target < 0) {
       this.raidTimer = 10;
       return;
     }
-    this.startRaid(candidates[this.ctx.rng.int(0, candidates.length)], target);
+    const raider = candidates[this.ctx.rng.int(0, candidates.length)];
+    raider.grudge = false;
+    this.startRaid(raider, target);
     this.raidTimer = this.ctx.rng.range(...RAID.interval);
   }
 
-  /** Сосед тихо идёт красть: объявление будет, только когда он действительно что-то утащит. */
+  /** Сосед тихо идёт красть: ни значка, ни объявления, пока он действительно что-то не утащит. */
   private startRaid(n: Neighbor, slot: number): void {
     if (slot < 0) return;
     n.raidSlot = slot;
@@ -424,6 +567,7 @@ export class Neighborhood {
     }
     n.raidLoot = loot;
     n.bot.setState('raidEscape');
+    n.bot.say(LINES.grab);
     n.bot.setPath([this.home.entranceNear(n.bot.position.x), n.layout.entrance.clone(), this.plateFront(n, BOT.slots >> 1)]);
     this.ctx.audio.blip('alarm');
     this.ctx.hud.showBanner(`${n.name} украл у тебя «${unitName(loot.def, loot.gold)}»! Догони и шлёпни его!`, '#ff6b6b', 3500);
@@ -432,8 +576,9 @@ export class Neighborhood {
   private stashLoot(n: Neighbor): void {
     const loot = n.raidLoot;
     n.raidLoot = null;
-    n.bot.setState('idle', this.ctx.rng.range(...BOT.awakeTime));
+    n.bot.setState('idle', this.ctx.rng.range(...n.stats.awakeTime));
     if (!loot) return;
+    n.bot.say(LINES.stashed);
     this.returnToNeighbor(n, loot, neighborSlotFor(n.slots, loot.def, loot.gold));
     this.ctx.hud.showBanner(`«${unitName(loot.def, loot.gold)}» теперь у ${n.genitive} — укради обратно!`, '#ffcd75');
   }
@@ -441,7 +586,7 @@ export class Neighborhood {
   // ---------------------------------------------------------------- поведение бота
 
   private updateBot(n: Neighbor, dt: number): void {
-    const { bot } = n;
+    const { bot, stats } = n;
     const { player, rng, world } = this.ctx;
     switch (bot.state) {
       case 'idle':
@@ -451,9 +596,9 @@ export class Neighborhood {
           break;
         }
         if (bot.pathDone && rng.chance(dt * 0.5)) bot.setPath([this.randomSpotInside(n.layout)]);
-        bot.walkPath(dt, BOT.wanderSpeed);
+        bot.walkPath(dt, BOT.wanderSpeed * stats.speed);
         bot.timer -= dt;
-        if (bot.timer <= 0) bot.setState('sleeping', rng.range(...BOT.sleepTime));
+        if (bot.timer <= 0) bot.setState('sleeping', rng.range(...stats.sleepTime));
         break;
       case 'sleeping':
         bot.setStatus('💤');
@@ -470,7 +615,7 @@ export class Neighborhood {
         else if (!insideBox(player.position, n.guardZone)) this.calmDown(n);
         else if (bot.timer > 0) bot.timer -= dt;
         else if (!player.isStunned) {
-          this.pursue(n, BOT.guardSpeed, dt);
+          this.pursue(n, BOT.guardSpeed * stats.speed, dt);
           if (this.canSwing(n)) this.windUp(n, 'guard');
         }
         break;
@@ -482,9 +627,10 @@ export class Neighborhood {
         bot.setStatus('😠');
         if (this.carried?.from !== n || this.ctx.time - n.chaseStart > BOT.chaseTimeout) {
           this.sendHome(n, '😤');
+          if (this.carried?.from === n) bot.say(LINES.giveUp, 2.5);
           break;
         }
-        this.pursue(n, this.chaseSpeed, dt);
+        this.pursue(n, this.chaseSpeed(n), dt);
         if (this.canSwing(n)) this.windUp(n, 'chase');
         break;
       case 'swing':
@@ -494,30 +640,39 @@ export class Neighborhood {
           break;
         }
         // замахнулся и продолжает бежать — от удара не уйти, если не успел раньше
-        this.pursue(n, n.swingFrom === 'chase' ? this.chaseSpeed : BOT.guardSpeed, dt);
-        if (bot.stateTime >= BOT.swingWindup) this.strike(n);
+        this.pursue(n, n.swingFrom === 'chase' ? this.chaseSpeed(n) : BOT.guardSpeed * stats.speed, dt);
+        if (bot.stateTime >= stats.windup) this.strike(n);
         break;
       case 'returning':
-        if (bot.walkPath(dt, BOT.walkSpeed)) bot.setState('idle', rng.range(...BOT.awakeTime));
+        // возвращается домой, а в бане вор — заметит
+        if (this.intruderIn(n) && insideBox(bot.position, n.layout.interior, 1)) {
+          this.notice(n);
+          break;
+        }
+        if (bot.walkPath(dt, BOT.walkSpeed * stats.speed)) bot.setState('idle', rng.range(...stats.awakeTime));
         break;
       case 'raidGo':
-        bot.setStatus('🥷');
-        if (bot.walkPath(dt, BOT.walkSpeed)) {
+        // вор идёт тихо — никаких значков над головой
+        bot.setStatus('');
+        if (bot.walkPath(dt, BOT.walkSpeed * stats.speed)) {
           if (this.home.locked) bot.setState('raidWait');
           else this.enterHome(n);
         }
         break;
       case 'raidWait':
-        bot.setStatus('⏳');
+        bot.setStatus('');
         if (!this.home.locked) this.enterHome(n);
-        else if (bot.stateTime > RAID.waitAtLock) this.sendHome(n, '😤');
+        else if (bot.stateTime > RAID.waitAtLock) {
+          this.sendHome(n, '😤');
+          bot.say(LINES.locked);
+        }
         break;
       case 'raidEnter':
-        bot.setStatus('🥷');
-        if (bot.walkPath(dt, BOT.walkSpeed)) this.grab(n);
+        bot.setStatus('');
+        if (bot.walkPath(dt, BOT.walkSpeed * stats.speed)) this.grab(n);
         break;
       case 'raidEscape': {
-        bot.setStatus('💨');
+        bot.setStatus('🥷');
         const loot = n.raidLoot;
         if (!loot) {
           this.sendHome(n, '');
@@ -525,7 +680,7 @@ export class Neighborhood {
         }
         loot.position.set(bot.position.x, 1.25, bot.position.z);
         loot.update(dt);
-        if (bot.walkPath(dt, BOT.escapeSpeed)) this.stashLoot(n);
+        if (bot.walkPath(dt, BOT.escapeSpeed * stats.speed)) this.stashLoot(n);
         break;
       }
       case 'stunned':
@@ -534,8 +689,8 @@ export class Neighborhood {
         if (bot.timer <= 0) this.afterStun(n);
         break;
     }
-    // вор в набеге виден всегда: если он за краем экрана, значок прижат к краю
-    bot.label.pinToEdge = RAIDING.has(bot.state);
+    // вор с добычей виден всегда: если он за краем экрана, значок прижат к краю
+    bot.label.pinToEdge = bot.state === 'raidEscape';
     bot.animate(dt, world);
   }
 
@@ -565,9 +720,10 @@ export class Neighborhood {
     return distanceXZ(n.bot.position, player.position) < BOT.swingStart && this.clearShot(n.bot.position, player.position);
   }
 
-  /** Скорость погони: чуть быстрее игрока с добычей, с учётом его кроссовок. */
-  private get chaseSpeed(): number {
-    return PLAYER.speed * speedMultiplier(this.ctx.save.upgrades) * PLAYER.carrySpeedFactor + BOT.chaseEdge;
+  /** Скорость погони: быстрее игрока с добычей (с учётом его кроссовок), и тем быстрее, чем выше уровень соседа. */
+  private chaseSpeed(n: Neighbor): number {
+    const thief = PLAYER.speed * speedMultiplier(this.ctx.save.upgrades) * PLAYER.carrySpeedFactor;
+    return chaseSpeed(thief, n.stats);
   }
 
   /** Игрок у соседа в бане. */
@@ -577,6 +733,7 @@ export class Neighborhood {
 
   private notice(n: Neighbor): void {
     n.bot.setState('notice');
+    n.bot.say(LINES.notice);
     const hint = this.broomHints < BROOM_HINTS;
     if (hint) this.broomHints++;
     this.ctx.hud.showBanner(`${n.name} тебя заметил!${hint ? ' Шлёпни его веником — или беги' : ''}`, '#ff6b6b', hint ? 3500 : 2000);
@@ -592,12 +749,13 @@ export class Neighborhood {
   private wakeUp(n: Neighbor): void {
     if (this.carried?.from === n) {
       n.bot.setState('alert');
+      n.bot.say(LINES.wake);
       this.ctx.audio.blip('alarm');
       this.ctx.hud.showBanner(`${n.name} проснулся и заметил пропажу! Беги!`, '#ff6b6b');
     } else if (this.intruderIn(n)) {
       this.notice(n);
     } else {
-      n.bot.setState('idle', this.ctx.rng.range(...BOT.awakeTime));
+      n.bot.setState('idle', this.ctx.rng.range(...n.stats.awakeTime));
     }
   }
 
@@ -605,7 +763,7 @@ export class Neighborhood {
   private calmDown(n: Neighbor): void {
     const spot = this.randomSpotInside(n.layout);
     const path = this.nav.findPath(n.bot.position, spot) ?? [spot];
-    n.bot.setState('idle', this.ctx.rng.range(...BOT.awakeTime));
+    n.bot.setState('idle', this.ctx.rng.range(...n.stats.awakeTime));
     n.bot.setPath(path.map((p) => new THREE.Vector3(p.x, 0, p.z)));
   }
 
@@ -618,6 +776,7 @@ export class Neighborhood {
   private windUp(n: Neighbor, from: 'guard' | 'chase'): void {
     n.swingFrom = from;
     n.bot.setState('swing');
+    n.bot.say(LINES.swing, 0.9);
   }
 
   /** Сосед идёт домой по пути в обход стен. */
@@ -637,7 +796,7 @@ export class Neighborhood {
     n.latchTimer -= dt;
     if (n.latchTimer <= 0) {
       n.latched = !n.latched;
-      const [min, max] = n.latched ? BOT.latchClosed : BOT.latchOpen;
+      const [min, max] = n.latched ? n.stats.latchClosed : n.stats.latchOpen;
       n.latchTimer = this.ctx.rng.range(min, max);
     }
     n.layout.barrier.visible = n.latched;
@@ -652,7 +811,7 @@ export class Neighborhood {
     if (n.refillTimer > 0) return;
     const { rng, save } = this.ctx;
     n.refillTimer = rng.range(...BOT.refillInterval);
-    const def = rollNeighborCharacter(rng, CHARACTERS, playerPower(save.slots));
+    const def = rollNeighborCharacter(rng, CHARACTERS, playerPower(save.slots), n.config.loot);
     const gold = rng.chance(GOLD.neighborChance);
     let slot = n.slots.findIndex((unit, i) => unit === null && !n.residents[i]);
     if (slot < 0 && rng.chance(0.35)) slot = neighborSlotFor(n.slots, def, gold);

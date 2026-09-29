@@ -56,8 +56,10 @@ body {
 .walker-tag,
 .plate-tag,
 .world-sign,
+.area-sign,
 .tutorial-pointer,
 .bot-status,
+.say-bubble,
 .resident-tag,
 .float-coins,
 .float-spend,
@@ -113,8 +115,96 @@ body {
 }
 
 .world-sign.neighbor-sign {
+  display: grid;
+  justify-items: center;
   font-size: 15px;
   color: var(--paper);
+}
+
+/* уровень соседа под названием его бани */
+.sign-level {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #c7a1f0;
+}
+
+/* надпись на указателе */
+.area-sign {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgb(90 58 56 / 0.85);
+  font-size: 12px;
+  color: #f0dcb4;
+  text-shadow: none;
+}
+
+/* реплика над головой */
+.say-bubble {
+  max-width: 180px;
+  padding: 3px 9px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: var(--paper);
+  font-size: 13px;
+  color: var(--ink);
+  text-shadow: none;
+  white-space: normal;
+  width: max-content;
+  text-align: center;
+}
+
+.say-bubble::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 8px;
+  height: 8px;
+  margin-left: -5px;
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  background: var(--paper);
+  transform: rotate(45deg);
+}
+
+.say-bubble.pop {
+  animation: bubble-pop 0.18s ease-out;
+}
+
+@keyframes bubble-pop {
+  from {
+    opacity: 0;
+    margin-top: 6px;
+  }
+}
+
+.dog-status {
+  font-size: 16px;
+}
+
+/* монетка летит в кошелёк */
+.fly-coin {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  margin: -11px 0 0 -11px;
+  background-size: 132px 22px;
+  image-rendering: pixelated;
+  pointer-events: none;
+  will-change: transform;
+  z-index: 5;
+}
+
+.hud-wallet.bump {
+  animation: wallet-bump 0.16s ease-out;
+}
+
+@keyframes wallet-bump {
+  50% {
+    transform: scale(1.06);
+  }
 }
 
 .lock-tag {
@@ -657,6 +747,18 @@ body {
 .upgrade-max {
   text-align: center;
   color: var(--green);
+}
+
+/* какого уровня соседи — под списком прокачки */
+.upgrade-note {
+  margin-top: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: rgb(192 123 255 / 0.14);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #d9c2ff;
 }
 
 /* кейсы */

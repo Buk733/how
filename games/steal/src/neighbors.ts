@@ -31,13 +31,17 @@ export function characterNearTier(rng: Rng, characters: readonly CharacterDef[],
   return pool[rng.int(0, pool.length)];
 }
 
+/** Шансы, что персонаж соседа на ступень ниже силы игрока, такой же или на ступень выше. */
+export type LootBias = readonly [number, number, number];
+const DEFAULT_BIAS: LootBias = [0.35, 0.45, 0.2];
+
 /**
  * Кого сосед ставит себе на полок: редкость около силы игрока —
  * чаще такая же или ниже, иногда на ступень выше (чтобы было что украсть).
  */
-export function rollNeighborCharacter(rng: Rng, characters: readonly CharacterDef[], power: number): CharacterDef {
+export function rollNeighborCharacter(rng: Rng, characters: readonly CharacterDef[], power: number, bias: LootBias = DEFAULT_BIAS): CharacterDef {
   const roll = rng.next();
-  const offset = roll < 0.35 ? -1 : roll < 0.8 ? 0 : 1;
+  const offset = roll < bias[0] ? -1 : roll < bias[0] + bias[1] ? 0 : 1;
   return characterNearTier(rng, characters, Math.max(0, power) + offset);
 }
 
@@ -48,10 +52,11 @@ export function createNeighborRoster(
   power: number,
   slots: number,
   goldChance = 0,
+  bias: LootBias = DEFAULT_BIAS,
 ): (UnitSave | null)[] {
   const filled = Math.max(2, Math.round(slots * 0.66));
   return Array.from({ length: slots }, (_, i) =>
-    i < filled ? { id: rollNeighborCharacter(rng, characters, power).id, gold: rng.chance(goldChance) } : null,
+    i < filled ? { id: rollNeighborCharacter(rng, characters, power, bias).id, gold: rng.chance(goldChance) } : null,
   );
 }
 

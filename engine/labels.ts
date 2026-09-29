@@ -27,6 +27,10 @@ export class LabelLayer {
   readonly root: HTMLDivElement;
   private readonly labels = new Set<Label>();
   private readonly projected = new THREE.Vector3();
+  /** Камера и размер слоя с прошлого кадра — для toScreen. */
+  private camera: THREE.Camera | null = null;
+  private width = 0;
+  private height = 0;
 
   constructor(container: HTMLElement) {
     this.root = document.createElement('div');
@@ -53,7 +57,18 @@ export class LabelLayer {
     this.labels.delete(label);
   }
 
+  /** Где точка мира на экране (в пикселях слоя) по камере прошлого кадра; null — за камерой. */
+  toScreen(position: THREE.Vector3): { x: number; y: number } | null {
+    if (!this.camera) return null;
+    const p = this.projected.copy(position).project(this.camera);
+    if (p.z >= 1) return null;
+    return { x: ((p.x + 1) / 2) * this.width, y: ((1 - p.y) / 2) * this.height };
+  }
+
   update(camera: THREE.Camera, width: number, height: number): void {
+    this.camera = camera;
+    this.width = width;
+    this.height = height;
     for (const label of this.labels) {
       const p = this.projected.copy(label.anchor).project(camera);
       const inView = p.z < 1 && Math.abs(p.x) < 1.2 && Math.abs(p.y) < 1.2;

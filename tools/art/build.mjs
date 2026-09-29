@@ -3,6 +3,7 @@
 import { fileURLToPath } from 'node:url';
 import { contactSheet, goldify } from './lib.mjs';
 import * as characters from './characters.mjs';
+import * as scenery from './scenery.mjs';
 import * as textures from './textures.mjs';
 
 const root = fileURLToPath(new URL('../../games/steal/src/assets/', import.meta.url));
@@ -41,16 +42,59 @@ const outputs = {
   'sprites/plate.png': textures.plate(),
   'sprites/steam.png': textures.steam(),
   'sprites/sparkle.png': textures.sparkle(),
-  'sprites/tree.png': textures.tree(),
-  'sprites/pine.png': textures.pine(),
-  'sprites/bush.png': textures.bush(),
   'sprites/bucket.png': textures.bucket(),
+  'sprites/smoke.png': scenery.smoke(),
+  'sprites/dust.png': scenery.dust(),
+  // лес
+  'sprites/tree.png': scenery.trees(),
+  'sprites/pine.png': scenery.pines(),
+  'sprites/birch.png': scenery.birches(),
+  'sprites/bush.png': scenery.bushes(),
+  'sprites/stump.png': scenery.stumps(),
+  'sprites/log.png': scenery.log(),
+  'sprites/rock.png': scenery.rocks(),
+  'sprites/mushroom.png': scenery.mushrooms(),
+  'sprites/flower.png': scenery.flowers(),
+  'sprites/grass-tuft.png': scenery.grassTufts(),
+  'sprites/fern.png': scenery.ferns(),
+  // пасхалки
+  'sprites/hut.png': scenery.hut(),
+  'sprites/bear.png': scenery.bear(),
+  'sprites/campfire.png': scenery.campfire(),
+  'sprites/well.png': scenery.well(),
+  'sprites/outhouse.png': scenery.outhouse(),
+  'sprites/old-car.png': scenery.oldCar(),
+  'sprites/fairy-stone.png': scenery.fairyStone(),
+  'sprites/fisherman.png': scenery.fisherman(),
+  // постройки и мелочи
+  'sprites/windmill.png': scenery.windmill(),
+  'sprites/scarecrow.png': scenery.scarecrow(),
+  'sprites/kennel.png': scenery.kennel(),
+  'sprites/bell.png': scenery.bell(),
+  'sprites/lantern.png': scenery.lantern(),
+  'sprites/woodpile.png': scenery.woodpile(),
+  'sprites/arch.png': scenery.arch(),
+  'sprites/portal.png': scenery.portal(),
+  'sprites/fence.png': scenery.fence(),
+  'sprites/bus-stop.png': scenery.busStop(),
+  'sprites/crops.png': scenery.crops(),
+  'sprites/tractor.png': scenery.tractor(),
+  'sprites/signpost.png': scenery.signpost(),
+  // животные: собаки соседей — рыжий Шарик и чёрный Бобик
+  'sprites/duck.png': scenery.duck(),
+  'sprites/bird.png': scenery.bird(),
+  'sprites/butterfly.png': scenery.butterfly(),
+  'sprites/dog-brown.png': scenery.dog(),
+  'sprites/dog-black.png': scenery.dog({ fur: '#4a4456', light: '#6a6478', dark: '#2b2733', collar: '#41a6f6' }),
   // тайлы
   'textures/grass.png': textures.grass(),
   'textures/planks.png': textures.planks(),
   'textures/logs.png': textures.logs(),
   'textures/carpet.png': textures.carpet(),
   'textures/stone.png': textures.stone(),
+  'textures/water.png': scenery.water(),
+  'textures/path.png': scenery.path(),
+  'textures/soil.png': scenery.soil(),
 };
 
 for (const [path, img] of Object.entries(outputs)) img.save(root + path);

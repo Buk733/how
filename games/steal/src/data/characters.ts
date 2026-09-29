@@ -1,4 +1,5 @@
 import type { Rarity } from './rarity';
+import { spriteUrl } from './sprites';
 import pantherSound from '../sounds/tantsui-pantera.mp3';
 import kotostSound from '../sounds/kotost.mp3';
 import diverSound from '../sounds/niukhai-bystree.mp3';
@@ -27,15 +28,6 @@ export interface CharacterDef {
   readonly goldSprite: string;
   /** Мемный звук: играет, когда персонажа покупают. */
   readonly sound?: CharacterSound;
-}
-
-// все спрайты персонажей по имени файла; картинки рисует `npm run art`
-const SPRITES = import.meta.glob<string>('../assets/sprites/*.png', { eager: true, import: 'default' });
-
-function spriteUrl(name: string): string {
-  const url = SPRITES[`../assets/sprites/${name}.png`];
-  if (!url) throw new Error(`Нет спрайта sprites/${name}.png — нарисуйте его в tools/art и запустите npm run art`);
-  return url;
 }
 
 type Entry = Omit<CharacterDef, 'sprite' | 'goldSprite'>;

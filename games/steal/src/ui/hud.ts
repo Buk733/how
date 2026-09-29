@@ -30,6 +30,9 @@ const MENUS: readonly { readonly id: MenuId; readonly icon: string; readonly tex
 /** Интерфейс поверх игры: монеты, доход, кнопки действия, веника и окон, объявления. */
 export class Hud {
   private readonly root: HTMLDivElement;
+  private readonly wallet: HTMLDivElement;
+  private readonly coinIcon: HTMLSpanElement;
+  private readonly coinIconUrl: string;
   private readonly coins: HTMLSpanElement;
   private readonly income: HTMLDivElement;
   private readonly boost: HTMLDivElement;
@@ -54,6 +57,9 @@ export class Hud {
     const wallet = element('div', 'hud-wallet');
     const icon = element('span', 'hud-coin-icon');
     icon.style.backgroundImage = `url("${coinIconUrl}")`;
+    this.wallet = wallet;
+    this.coinIcon = icon;
+    this.coinIconUrl = coinIconUrl;
     this.coins = element('span', 'hud-coins', '0');
     this.income = element('div', 'hud-income');
     this.boost = element('div', 'hud-boost');
@@ -146,6 +152,39 @@ export class Hud {
   setMusic(on: boolean): void {
     this.music.classList.toggle('off', !on);
     this.music.title = on ? 'Выключить музыку' : 'Включить музыку';
+  }
+
+  /**
+   * Монеты вылетают из точки экрана (x, y — пиксели внутри игры) и летят в кошелёк.
+   * Кошелёк подпрыгивает, когда долетает каждая.
+   */
+  flyCoins(x: number, y: number, count: number): void {
+    const box = this.root.getBoundingClientRect();
+    const target = this.coinIcon.getBoundingClientRect();
+    const tx = target.left - box.left + target.width / 2;
+    const ty = target.top - box.top + target.height / 2;
+    for (let i = 0; i < count; i++) {
+      const coin = element('span', 'fly-coin');
+      coin.style.backgroundImage = `url("${this.coinIconUrl}")`;
+      this.root.append(coin);
+      // сначала монетки разлетаются фонтанчиком, потом дугой летят к кошельку
+      const bx = x + (Math.random() - 0.5) * 70;
+      const by = y - 30 - Math.random() * 45;
+      const animation = coin.animate(
+        [
+          { transform: `translate(${x}px, ${y}px) scale(0.5)` },
+          { transform: `translate(${bx}px, ${by}px) scale(1)`, offset: 0.3 },
+          { transform: `translate(${tx}px, ${ty}px) scale(0.75)` },
+        ],
+        { duration: 620 + i * 50, delay: i * 45, easing: 'cubic-bezier(0.4, 0, 0.8, 0.6)', fill: 'backwards' },
+      );
+      animation.onfinish = () => {
+        coin.remove();
+        this.wallet.classList.remove('bump');
+        void this.wallet.offsetWidth;
+        this.wallet.classList.add('bump');
+      };
+    }
   }
 
   /** Крупное объявление по центру сверху. */

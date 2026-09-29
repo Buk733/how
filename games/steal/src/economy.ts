@@ -85,9 +85,14 @@ export function incomeFactor(save: SaveData, now: number): number {
   return incomeMultiplier(save.upgrades) * (boostActive(save, now) ? 2 : 1);
 }
 
+/** Доход персонажей на полке без печи и ускорителя — по нему растут соседи. */
+export function baseIncome(save: SaveData): number {
+  return save.slots.reduce((sum, slot) => sum + slotIncome(slot), 0);
+}
+
 /** Суммарный доход всех персонажей на полке, монет в секунду (now — для ускорителя). */
 export function totalIncome(save: SaveData, now = 0): number {
-  return save.slots.reduce((sum, slot) => sum + slotIncome(slot), 0) * incomeFactor(save, now);
+  return baseIncome(save) * incomeFactor(save, now);
 }
 
 /** Сколько вернут за персонажа, которого заменили или продали. */

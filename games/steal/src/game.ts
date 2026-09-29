@@ -13,35 +13,21 @@ import { Carpet, RARE_THEME } from './carpet';
 import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
 import type { Action, GameContext, TutorialEvent } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
-import { totalIncome } from './economy';
+import { spriteUrl, textureUrl } from './data/sprites';
+import { baseIncome, totalIncome } from './economy';
+import { Effects } from './effects';
 import { Brainrot } from './entities/brainrot';
 import { Player } from './entities/player';
 import { Home } from './home';
+import { BEAR_TUNE_ID, Landmarks } from './landmarks';
 import { Menus } from './menus';
 import { BANYA_POLKA } from './music';
 import { Neighborhood } from './neighborhood';
 import { parseSave, TUTORIAL_DONE, type SaveData } from './save';
 import { Spawner } from './spawner';
 import { Hud, type MenuId } from './ui/hud';
-import { broomStun, seconds, speedMultiplier } from './upgrades';
+import { broomStun, speedMultiplier } from './upgrades';
 import { buildWorld, type World } from './world';
-import heroUrl from './assets/sprites/hero.png';
-import neighborGreenUrl from './assets/sprites/neighbor-green.png';
-import neighborPurpleUrl from './assets/sprites/neighbor-purple.png';
-import broomSwingUrl from './assets/sprites/broom-swing.png';
-import sparkleUrl from './assets/sprites/sparkle.png';
-import coinUrl from './assets/sprites/coin.png';
-import plateUrl from './assets/sprites/plate.png';
-import steamUrl from './assets/sprites/steam.png';
-import treeUrl from './assets/sprites/tree.png';
-import pineUrl from './assets/sprites/pine.png';
-import bushUrl from './assets/sprites/bush.png';
-import bucketUrl from './assets/sprites/bucket.png';
-import grassUrl from './assets/textures/grass.png';
-import planksUrl from './assets/textures/planks.png';
-import logsUrl from './assets/textures/logs.png';
-import carpetUrl from './assets/textures/carpet.png';
-import stoneUrl from './assets/textures/stone.png';
 import rareThemeUrl from './sounds/rare-theme.mp3';
 
 /** Самый длинный шаг симуляции: если вкладка «подвисла», мир не прыгнет вперёд. */
@@ -57,34 +43,78 @@ const MUSIC_SAMPLE_RATE = 32000;
 const MUSIC_JOB_BUDGET_MS = 4;
 /** Клавиши окон. */
 const MENU_KEYS: Readonly<Record<string, MenuId>> = { KeyU: 'upgrades', KeyK: 'cases', KeyL: 'wheel', KeyP: 'upgrader' };
+/** Как часто из-под ног бегущего героя вылетает облачко пыли, секунды. */
+const DUST_INTERVAL = 0.16;
 
-const sheet = (url: string, frameWidth: number, frameHeight: number, pixelsPerUnit = 16): SpriteSheetDef => ({
-  url,
+/** Лист спрайта по имени файла: размер кадра и сколько пикселей в единице мира. */
+const sheet = (name: string, frameWidth: number, frameHeight: number, pixelsPerUnit = 16): SpriteSheetDef => ({
+  url: spriteUrl(name),
   frameWidth,
   frameHeight,
   pixelsPerUnit,
 });
 
 const SHEETS = {
-  hero: sheet(heroUrl, 16, 16, 12),
-  neighborGreen: sheet(neighborGreenUrl, 16, 16, 12),
-  neighborPurple: sheet(neighborPurpleUrl, 16, 16, 12),
-  broom: sheet(broomSwingUrl, 24, 24, 20),
-  sparkle: sheet(sparkleUrl, 8, 8, 16),
-  plate: sheet(plateUrl, 16, 16, 11),
-  steam: sheet(steamUrl, 8, 8, 10),
-  tree: sheet(treeUrl, 32, 40),
-  pine: sheet(pineUrl, 24, 40),
-  bush: sheet(bushUrl, 16, 12),
-  bucket: sheet(bucketUrl, 16, 16, 20),
+  // герой, соседи и их хозяйство
+  hero: sheet('hero', 16, 16, 12),
+  neighborGreen: sheet('neighbor-green', 16, 16, 12),
+  neighborPurple: sheet('neighbor-purple', 16, 16, 12),
+  dogBrown: sheet('dog-brown', 20, 16),
+  dogBlack: sheet('dog-black', 20, 16),
+  broom: sheet('broom-swing', 24, 24, 20),
+  bell: sheet('bell', 8, 12),
+  kennel: sheet('kennel', 22, 20),
+  // частицы и мелочи бани
+  sparkle: sheet('sparkle', 8, 8, 16),
+  plate: sheet('plate', 16, 16, 11),
+  steam: sheet('steam', 8, 8, 10),
+  smoke: sheet('smoke', 8, 8, 12),
+  dust: sheet('dust', 8, 8, 18),
+  bucket: sheet('bucket', 16, 16, 20),
+  lantern: sheet('lantern', 10, 26),
+  woodpile: sheet('woodpile', 24, 18),
+  arch: sheet('arch', 56, 52),
+  portal: sheet('portal', 40, 40, 17),
+  // лес и луга
+  tree: sheet('tree', 32, 40),
+  pine: sheet('pine', 24, 40),
+  birch: sheet('birch', 24, 44),
+  bush: sheet('bush', 16, 12),
+  stump: sheet('stump', 16, 14),
+  log: sheet('log', 24, 10),
+  rock: sheet('rock', 16, 10),
+  mushroom: sheet('mushroom', 8, 8),
+  flower: sheet('flower', 8, 8),
+  grassTuft: sheet('grass-tuft', 10, 7),
+  fern: sheet('fern', 16, 10),
+  // огород, дорога, мельница, звери
+  fence: sheet('fence', 32, 14),
+  busStop: sheet('bus-stop', 40, 34),
+  crops: sheet('crops', 12, 10),
+  windmill: sheet('windmill', 48, 64, 13),
+  scarecrow: sheet('scarecrow', 20, 30),
+  signpost: sheet('signpost', 16, 22),
+  tractor: sheet('tractor', 34, 26),
+  duck: sheet('duck', 12, 10),
+  bird: sheet('bird', 10, 7),
+  butterfly: sheet('butterfly', 7, 6),
+  // пасхалки
+  hut: sheet('hut', 40, 52, 13),
+  bear: sheet('bear', 28, 28),
+  campfire: sheet('campfire', 16, 16),
+  well: sheet('well', 24, 28),
+  outhouse: sheet('outhouse', 18, 30),
+  oldCar: sheet('old-car', 40, 22),
+  fairyStone: sheet('fairy-stone', 28, 20),
+  fisherman: sheet('fisherman', 32, 28),
 };
 type Sheets = Record<keyof typeof SHEETS, SpriteSheet>;
 
+const TEXTURE_NAMES = ['grass', 'planks', 'logs', 'carpet', 'stone', 'water', 'path', 'soil'] as const;
+
 async function loadTextures() {
-  const [grass, planks, logs, carpet, stone] = await Promise.all(
-    [grassUrl, planksUrl, logsUrl, carpetUrl, stoneUrl].map((url) => loadTileTexture(url)),
-  );
-  return { grass, planks, logs, carpet, stone };
+  const textures = await Promise.all(TEXTURE_NAMES.map((name) => loadTileTexture(textureUrl(name))));
+  return Object.fromEntries(TEXTURE_NAMES.map((name, i) => [name, textures[i]])) as Record<(typeof TEXTURE_NAMES)[number], THREE.Texture>;
 }
 
 /** Сама игра: собирает мир, дорожку, баню и соседей и крутит игровой цикл. */
@@ -93,6 +123,7 @@ export class Game implements GameContext {
   readonly labels: LabelLayer;
   readonly audio: AudioManager;
   readonly hud: Hud;
+  readonly fx: Effects;
   readonly save: SaveData;
   readonly world: World;
   readonly player: Player;
@@ -109,6 +140,7 @@ export class Game implements GameContext {
   private readonly home: Home;
   private readonly carpet: Carpet;
   private readonly neighborhood: Neighborhood;
+  private readonly landmarks: Landmarks;
   private readonly broom: Broom;
   private readonly menus: Menus;
   private readonly resizeObserver: ResizeObserver;
@@ -125,16 +157,17 @@ export class Game implements GameContext {
   private musicJob: Generator<void, Float32Array, void> | null = renderSongGradually(BANYA_POLKA, MUSIC_SAMPLE_RATE);
   /** Игрок уже касался экрана или клавиш — браузер разрешил звук. */
   private gestureSeen = false;
-  /** Фоновая мелодия притихла, пока звучит трек редкого персонажа. */
+  /** Фоновая мелодия притихла, пока звучит трек редкого персонажа или балалайка медведя. */
   private musicDucked = false;
+  private dustTimer = 0;
 
   /** Загружает всё нужное и собирает игру внутри container. */
   static async create(container: HTMLElement, platform: Platform): Promise<Game> {
     // обычный и золотой лист каждого персонажа: ключи «id» и «id:gold»
     const characterDefs = Object.fromEntries(
       CHARACTERS.flatMap((c) => [
-        [c.id, sheet(c.sprite, 32, 32, CHARACTER_PPU)],
-        [`${c.id}:gold`, sheet(c.goldSprite, 32, 32, CHARACTER_PPU)],
+        [c.id, { url: c.sprite, frameWidth: 32, frameHeight: 32, pixelsPerUnit: CHARACTER_PPU }],
+        [`${c.id}:gold`, { url: c.goldSprite, frameWidth: 32, frameHeight: 32, pixelsPerUnit: CHARACTER_PPU }],
       ]),
     );
     const [sheets, characterSheets, textures, raw] = await Promise.all([
@@ -169,6 +202,8 @@ export class Game implements GameContext {
     this.sparkleSheet = sheets.sparkle;
     this.audio = audio;
     this.save = save;
+    // лучший доход, по которому растут соседи, — не меньше того, что уже на полке
+    save.stats.peakIncome = Math.max(save.stats.peakIncome, baseIncome(save));
 
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
     container.append(this.renderer.domElement);
@@ -194,20 +229,27 @@ export class Game implements GameContext {
     });
     for (const [code, menu] of Object.entries(MENU_KEYS)) this.input.onKey(code, () => this.menus.toggle(menu));
     this.input.onKey('Escape', () => this.menus.close());
-    this.hud = new Hud(container, coinUrl, {
+    this.hud = new Hud(container, spriteUrl('coin'), {
       onAction: () => this.input.queueAction(),
       onAttack: () => this.input.queueAttack(),
       onMenu: (menu) => this.menus.toggle(menu),
       onToggleMute: () => this.toggleMute(),
       onToggleMusic: () => this.toggleMusic(),
     });
+    this.fx = new Effects(this.scene, sheets, this.labels, this.hud, this.cameraRig);
     this.audio.setVolume(AUDIO.master);
     this.audio.setMuted(this.save.muted);
     this.hud.setMuted(this.save.muted);
     this.hud.setMusic(this.save.music);
 
     this.home = new Home(this, sheets.plate);
-    this.neighborhood = new Neighborhood(this, this.home, [sheets.neighborGreen, sheets.neighborPurple], sheets.broom);
+    this.landmarks = new Landmarks(this, sheets);
+    this.neighborhood = new Neighborhood(this, this.home, {
+      bots: [sheets.neighborGreen, sheets.neighborPurple],
+      dogs: [sheets.dogBrown, sheets.dogBlack],
+      broom: sheets.broom,
+      bell: sheets.bell,
+    });
     this.carpet = new Carpet(this, this.home, new Spawner(this.rng, CHARACTERS, CARPET.spawnInterval));
     this.carpet.prefill();
     this.broom = new Broom(this, sheets.broom);
@@ -251,15 +293,21 @@ export class Game implements GameContext {
     this.carpet.update(dt);
     this.home.update(dt);
     this.neighborhood.update(dt);
-    this.world.update(dt);
+    this.landmarks.update(dt);
+    this.world.update(dt, this.player.position);
+    this.fx.update(dt);
+    this.updateDust(dt);
     if (this.save.tutorial === 0 && !this.carpet.tutorialWalker) this.carpet.spawnTutorialWalker();
+    // лучший доход растёт — соседи прокачиваются вслед за ним
+    this.save.stats.peakIncome = Math.max(this.save.stats.peakIncome, baseIncome(this.save));
 
     if (this.input.consumeAttack()) this.attack();
     const action: Action | null =
       this.findHitAction() ??
       this.home.findAction() ??
       this.neighborhood.findAction() ??
-      this.carpet.findAction(this.neighborhood.isCarrying);
+      this.carpet.findAction(this.neighborhood.isCarrying) ??
+      this.landmarks.findAction();
     this.hud.setAction(action?.view ?? null);
     if (this.input.consumeAction()) {
       if (action?.view.enabled) action.run();
@@ -280,9 +328,19 @@ export class Game implements GameContext {
     this.maybeSave();
   }
 
+  /** Пыль из-под ног, пока герой бежит. */
+  private updateDust(dt: number): void {
+    this.dustTimer -= dt;
+    const move = this.input.move;
+    if (this.dustTimer > 0 || this.player.isStunned || Math.hypot(move.x, move.y) < 0.5) return;
+    this.dustTimer = DUST_INTERVAL;
+    const facing = this.player.facing;
+    this.fx.dust(this.player.position.clone().add(new THREE.Vector3(-facing.x * 0.3, 0, -facing.z * 0.3)));
+  }
+
   // ---------------------------------------------------------------- веник
 
-  /** Удар веником: оглушает соседей рядом. С добычей на руках бить нельзя. */
+  /** Удар веником: оглушает соседей и прогоняет собак рядом. С добычей на руках бить нельзя. */
   private attack(): void {
     if (this.player.isStunned) return;
     if (this.neighborhood.isCarrying) {
@@ -294,14 +352,14 @@ export class Game implements GameContext {
     this.neighborhood.hitAround(this.player.position, BROOM.range, broomStun(this.save.upgrades));
   }
 
-  /** Если рядом враждебный сосед — главная кнопка тоже бьёт веником. */
+  /** Если рядом враждебный сосед или собака — главная кнопка тоже бьёт веником. */
   private findHitAction(): Action | null {
     if (this.neighborhood.isCarrying || this.player.isStunned) return null;
-    const target = this.neighborhood.hostileNear(this.player.position, BROOM.range);
+    const target = this.neighborhood.hostileNear(this.player.position, BROOM.range, broomStun(this.save.upgrades));
     if (!target) return null;
     return {
       view: this.broom.ready
-        ? { title: 'Шлёпнуть веником', detail: `${target.name} — оглушить на ${seconds(broomStun(this.save.upgrades))}`, enabled: true }
+        ? { title: 'Шлёпнуть веником', detail: target.detail, enabled: true }
         : { title: 'Шлёпнуть веником', detail: 'веник перезаряжается…', enabled: false },
       run: () => this.attack(),
     };
@@ -454,12 +512,12 @@ export class Game implements GameContext {
     this.markDirty(true);
   }
 
-  /** Пока звучит трек редкого персонажа, фоновая мелодия плавно затихает, потом возвращается. */
+  /** Пока звучит трек редкого персонажа или балалайка, фоновая мелодия плавно затихает, потом возвращается. */
   private updateMusic(): void {
-    const rare = this.audio.isPlaying(RARE_THEME);
-    if (rare === this.musicDucked) return;
-    this.musicDucked = rare;
-    this.audio.fadeTo(BACKGROUND_MUSIC, rare ? 0 : AUDIO.music, rare ? AUDIO.fadeIn : 4);
+    const other = this.audio.isPlaying(RARE_THEME) || this.audio.isPlaying(BEAR_TUNE_ID);
+    if (other === this.musicDucked) return;
+    this.musicDucked = other;
+    this.audio.fadeTo(BACKGROUND_MUSIC, other ? 0 : AUDIO.music, other ? 1.2 : 4);
   }
 
   // ---------------------------------------------------------------- сохранение, пауза, звук
@@ -539,6 +597,7 @@ export class Game implements GameContext {
       carpet: this.carpet,
       home: this.home,
       neighborhood: this.neighborhood,
+      landmarks: this.landmarks,
       broom: this.broom,
       menus: this.menus,
       audio: this.audio,

@@ -36,6 +36,25 @@ const LEAD = `
 
 const bars = (bar: (chord: Chord) => string) => [...CHORDS, ...CHORDS].map(bar).join(' | ');
 
+/**
+ * Наигрыш медведя на балалайке: начало «Банной польки» бодрее и «щипком» —
+ * пасхалка на лесной поляне. Около 8 секунд.
+ */
+export const BEAR_TUNE: SongDef = {
+  bpm: 132,
+  stepsPerBeat: 2,
+  tracks: [
+    {
+      wave: 'pulse',
+      duty: 0.25,
+      volume: 0.2,
+      decay: 9,
+      notes: 'A4 A4 C5 E5 A5 A5 G5 E5 | F5 F5 E5 D5 F5 F5 A5 A5 | G5 G5 F5 D5 B4 B4 D5 D5 | E5 E5 D5 C5 E5 E5 G#5 G#5 | A5 E5 C5 E5 A5:4',
+    },
+    { wave: 'triangle', volume: 0.28, decay: 3, notes: 'A2:2 E3:2 A2:2 E3:2 | D3:2 A2:2 D3:2 A2:2 | G2:2 D3:2 G2:2 D3:2 | E2:2 B2:2 E2:2 B2:2 | A2:2 E3:2 A2:4' },
+  ],
+};
+
 export const BANYA_POLKA: SongDef = {
   bpm: 112,
   stepsPerBeat: 2,

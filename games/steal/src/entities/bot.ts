@@ -5,6 +5,7 @@ import type { Label } from '@engine/labels';
 import type { PointXZ } from '@engine/math';
 import type { SpriteSheet } from '@engine/sprite';
 import { Actor, moveWithCollisions, type Obstacles } from './actor';
+import { SpeechBubble } from './bubble';
 import { SwingEffect } from './swing';
 
 const IDLE: AnimationClip = { frames: [0], fps: 1 };
@@ -44,6 +45,8 @@ export class Bot extends Actor {
   /** Сколько секунд осталось до конца текущего состояния (для сна, бодрствования и т. п.). */
   timer = 0;
   readonly label: Label;
+  /** Реплики над головой: «Эй!», «Стой, ворюга!». */
+  readonly bubble: SpeechBubble;
   private readonly animator = new Animator(IDLE);
   private readonly path: THREE.Vector3[] = [];
   private readonly swingEffect: SwingEffect;
@@ -51,9 +54,11 @@ export class Bot extends Actor {
   private moved = false;
   private status = '';
 
-  constructor(sheet: SpriteSheet, label: Label, broomSheet: SpriteSheet) {
+  constructor(sheet: SpriteSheet, label: Label, bubble: Label, broomSheet: SpriteSheet) {
     super(sheet, 0.8);
     this.label = label;
+    this.label.visible = false;
+    this.bubble = new SpeechBubble(bubble);
     this.sprite.enableSilhouette();
     this.swingEffect = new SwingEffect(broomSheet, this.root);
   }
@@ -123,6 +128,11 @@ export class Bot extends Actor {
     this.swingEffect.play(dx, dz, dx < 0);
   }
 
+  /** Сказать фразу (или случайную из нескольких). */
+  say(text: string | readonly string[], seconds?: number): void {
+    this.bubble.say(text, seconds);
+  }
+
   /** Подпись над головой: «💤», «❗», «😤» и т. п. */
   setStatus(text: string): void {
     if (text === this.status) return;
@@ -143,6 +153,7 @@ export class Bot extends Actor {
     this.sprite.setSquash(squash);
     this.swingEffect.update(dt);
     this.label.anchor.set(this.position.x, 1.7, this.position.z);
+    this.bubble.update(dt, this.label.anchor.clone().setY(this.status ? 2.45 : 1.8));
     this.moved = false;
   }
 

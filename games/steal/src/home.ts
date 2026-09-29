@@ -5,11 +5,19 @@ import type { SpriteSheet } from '@engine/sprite';
 import { PLATE_RADIUS } from './config';
 import type { Action, GameContext } from './context';
 import { characterById, type CharacterDef } from './data/characters';
+import { shelfLine } from './data/phrases';
 import { findSlotFor, incomeFactor, sellValue, unitIncome, unlockCost, type SlotChoice, type Unit } from './economy';
 import type { Brainrot } from './entities/brainrot';
+import { SpeechBubble } from './entities/bubble';
 import { Plate } from './entities/plate';
 import { pickRaidTarget } from './neighbors';
 import { latchDuration } from './upgrades';
+
+/** Как часто кто-нибудь на полке что-то говорит и как часто печь «поддаёт пар», секунды. */
+const CHATTER_INTERVAL: readonly [number, number] = [6, 11];
+const STEAM_INTERVAL: readonly [number, number] = [25, 40];
+/** Звук пара слышно, только если игрок недалеко от своей бани. */
+const STEAM_HEARING = 18;
 
 /** Что стало с наградой из кейса или колеса. */
 export type RewardResult =
@@ -22,11 +30,19 @@ export class Home {
   private readonly ctx: GameContext;
   private readonly plates: Plate[];
   private readonly lockPlate: Plate;
+  /** Реплика одного из персонажей на полке. */
+  private readonly chatter: SpeechBubble;
+  private chatterTimer: number;
+  private chatterFrom: Brainrot | null = null;
+  private steamTimer: number;
   private lockedUntil = 0;
   private lastCollectText = 0;
 
   constructor(ctx: GameContext, plateSheet: SpriteSheet) {
     this.ctx = ctx;
+    this.chatter = new SpeechBubble(ctx.labels.create('say-bubble shelf-say'));
+    this.chatterTimer = ctx.rng.range(...CHATTER_INTERVAL);
+    this.steamTimer = ctx.rng.range(...STEAM_INTERVAL);
     const layout = ctx.world.home;
     const sign = ctx.labels.create('world-sign');
     sign.element.textContent = 'ТВОЯ БАНЯ';
@@ -97,6 +113,43 @@ export class Home {
     const locked = this.locked;
     this.ctx.world.home.barrier.visible = locked;
     this.lockPlate.setText(locked ? `🔒 ${Math.ceil(this.lockedUntil - this.ctx.time)} с` : '🔓 Щеколда');
+    this.updateChatter(dt);
+    this.updateSteam(dt);
+  }
+
+  /** Время от времени кто-нибудь на полке что-то говорит. */
+  private updateChatter(dt: number): void {
+    const from = this.chatterFrom;
+    if (from && this.chatter.visible) {
+      this.chatter.update(dt, from.position.clone().setY(from.position.y + 2.1));
+      if (from.state !== 'seated') this.chatter.hide();
+    }
+    this.chatterTimer -= dt;
+    if (this.chatterTimer > 0) return;
+    this.chatterTimer = this.ctx.rng.range(...CHATTER_INTERVAL);
+    const seated = this.residents.filter((r): r is Brainrot => r?.state === 'seated');
+    if (seated.length === 0) return;
+    const speaker = seated[this.ctx.rng.int(0, seated.length)];
+    this.chatterFrom = speaker;
+    this.chatter.say(shelfLine(speaker.def.id, this.ctx.rng), 2.4);
+    this.chatter.update(0, speaker.position.clone().setY(speaker.position.y + 2.1));
+  }
+
+  /** Печь иногда «поддаёт пар»: клубы над полком, шипение, «Кайф!». */
+  private updateSteam(dt: number): void {
+    this.steamTimer -= dt;
+    if (this.steamTimer > 0) return;
+    const { rng, world, player } = this.ctx;
+    this.steamTimer = rng.range(...STEAM_INTERVAL);
+    const stove = world.home.stove;
+    // печь справа, полок слева — пар плывёт на полок
+    this.ctx.fx.steam(stove.clone().setY(stove.y + 0.2), 2.5, -2.2);
+    if (distanceXZ(player.position, stove) < STEAM_HEARING) this.ctx.audio.blip('hiss');
+    const seated = this.residents.filter((r): r is Brainrot => r?.state === 'seated');
+    if (seated.length === 0) return;
+    this.chatterFrom = seated[rng.int(0, seated.length)];
+    this.chatter.say(['💦 Кайф!', 'Ух, парок!', 'С лёгким паром!'], 2.2);
+    this.chatterTimer = Math.max(this.chatterTimer, 3);
   }
 
   findAction(): Action | null {
@@ -258,7 +311,9 @@ export class Home {
     save.stats.earned += amount;
     if (this.ctx.time - this.lastCollectText > 0.35) {
       this.lastCollectText = this.ctx.time;
-      this.ctx.labels.float(`+${formatNumber(amount)}`, this.plates[slotIndex].mesh.position.clone().setY(1.2), 'float-coins');
+      const plate = this.plates[slotIndex].mesh.position;
+      this.ctx.labels.float(`+${formatNumber(amount)}`, plate.clone().setY(1.2), 'float-coins');
+      this.ctx.fx.coins(plate.clone().setY(0.3), amount);
       this.ctx.audio.blip('coin');
     }
     this.ctx.tutorialEvent('collected');

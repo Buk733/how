@@ -23,34 +23,43 @@ describe('parseSave', () => {
     save.freeSpinAt = 222;
     save.adSpins = { day: '2026-09-29', count: 2 };
     save.boostUntil = 333;
+    save.secrets = ['hut', 'well'];
     save.music = false;
     save.tutorial = 3;
-    save.stats = { bought: 2, earned: 100, stolen: 1, lost: 0, opened: 5, upgraded: 1 };
+    save.stats = { bought: 2, earned: 100, stolen: 1, lost: 0, opened: 5, upgraded: 1, peakIncome: 640 };
     expect(parseSave(JSON.parse(JSON.stringify(save)), known)).toEqual(save);
   });
 
   it('читает сохранение версии 1: соседей, прокачки и «Голды» ещё нет', () => {
     const v1 = { version: 1, coins: 300, unlocked: 4, slots: [{ id: 'kotost', stored: 3 }], tutorial: 2, muted: true, stats: { bought: 5, earned: 40 }, savedAt: 1 };
     const save = parseSave(v1, known);
-    expect(save.version).toBe(4);
+    expect(save.version).toBe(5);
     expect(save.coins).toBe(300);
     expect(save.slots[0]).toEqual({ id: 'kotost', gold: false, stored: 3 });
     expect(save.neighbors).toEqual([]);
     expect(save.upgrades).toEqual({ speed: 0, broom: 0, latch: 0, stove: 0 });
     expect(save.music).toBe(true);
     expect(save.tutorial).toBe(2);
-    expect(save.stats).toEqual({ bought: 5, earned: 40, stolen: 0, lost: 0, opened: 0, upgraded: 0 });
+    expect(save.stats).toEqual({ bought: 5, earned: 40, stolen: 0, lost: 0, opened: 0, upgraded: 0, peakIncome: 0 });
   });
 
   it('читает сохранение версии 3: у соседей были просто id, кейсов и таймеров ещё нет', () => {
     const neighbors = NEIGHBORS.map(() => ({ slots: ['panther', null, 'удалённый'] }));
     const save = parseSave({ version: 3, coins: 10, unlocked: 5, slots: [], neighbors, upgrades: { speed: 1 }, tutorial: 3 }, known);
-    expect(save.version).toBe(4);
+    expect(save.version).toBe(5);
     expect(save.neighbors[0].slots.slice(0, 3)).toEqual([{ id: 'panther', gold: false }, null, null]);
     expect(save.upgrades.speed).toBe(1);
     expect(save.keys).toEqual({});
     expect(save.freeCaseAt).toBe(0);
     expect(save.freeSpinAt).toBe(0);
+  });
+
+  it('читает сохранение версии 4: пасхалок и лучшего дохода ещё нет', () => {
+    const save = parseSave({ version: 4, coins: 10, slots: [], stats: { bought: 1 }, keys: { bath: 1 } }, known);
+    expect(save.version).toBe(5);
+    expect(save.secrets).toEqual([]);
+    expect(save.stats.peakIncome).toBe(0);
+    expect(save.keys).toEqual({ bath: 1 });
   });
 
   it('чинит сломанные значения и выкидывает неизвестное', () => {
@@ -65,7 +74,8 @@ describe('parseSave', () => {
         keys: { bath: 2.9, unknown: 5, meme: -1 },
         adSpins: { day: 5 },
         boostUntil: -10,
-        stats: { bought: 3 },
+        secrets: ['hut', 'hut', 'нет-такой', 5],
+        stats: { bought: 3, peakIncome: -1 },
       },
       known,
     );
@@ -80,6 +90,7 @@ describe('parseSave', () => {
     expect(save.keys).toEqual({ bath: 2 });
     expect(save.adSpins).toEqual({ day: '', count: 0 });
     expect(save.boostUntil).toBe(0);
-    expect(save.stats).toEqual({ bought: 3, earned: 0, stolen: 0, lost: 0, opened: 0, upgraded: 0 });
+    expect(save.secrets).toEqual(['hut']);
+    expect(save.stats).toEqual({ bought: 3, earned: 0, stolen: 0, lost: 0, opened: 0, upgraded: 0, peakIncome: 0 });
   });
 });
