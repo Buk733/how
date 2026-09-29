@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clamp, clampToBox, clampToRadius, damp, distanceXZ, pushOutOfBoxes, pushOutOfCircles } from './math';
+import { clamp, clampToBox, clampToRadius, damp, distanceToPolyline, distanceXZ, pushOutOfBoxes, pushOutOfCircles } from './math';
 
 describe('clamp / damp', () => {
   it('clamp держит значение в границах', () => {
@@ -41,5 +41,18 @@ describe('столкновения', () => {
     const inRadius = clampToRadius(10, 0, 5);
     expect(inRadius.x).toBeCloseTo(5);
     expect(clampToBox(-9, 9, { minX: -1, maxX: 1, minZ: -2, maxZ: 2 })).toEqual({ x: -1, z: 2 });
+  });
+});
+
+describe('расстояние до ломаной', () => {
+  const line = [{ x: 0, z: 0 }, { x: 4, z: 0 }, { x: 4, z: 3 }];
+
+  it('до ближайшего отрезка, а не до вершины', () => {
+    expect(distanceToPolyline({ x: 2, z: 1 }, line)).toBeCloseTo(1);
+    expect(distanceToPolyline({ x: 5, z: 2 }, line)).toBeCloseTo(1);
+  });
+
+  it('за концом — до конца', () => {
+    expect(distanceToPolyline({ x: -3, z: 4 }, line)).toBeCloseTo(5);
   });
 });

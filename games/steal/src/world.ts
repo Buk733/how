@@ -5,9 +5,10 @@ import { createShadowBatch } from '@engine/shadow';
 import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
 import { CARPET, ECONOMY, NEIGHBORS, PIXELS_PER_UNIT } from './config';
 import { FOREST_WALLS, GROUND, LANDMARK_BOXES, LANDMARK_CIRCLES, OPEN_AREAS, pondColliders, SOUTH, WALK_BOUNDS } from './layout';
+import { buildPortals, type PortalTextures } from './portals';
 import { buildScenery, type ScenerySheets, type SceneryTextures } from './scenery';
 
-export interface WorldTextures extends SceneryTextures {
+export interface WorldTextures extends SceneryTextures, PortalTextures {
   readonly grass: THREE.Texture;
   readonly planks: THREE.Texture;
   readonly logs: THREE.Texture;
@@ -18,12 +19,9 @@ export interface WorldTextures extends SceneryTextures {
 export interface DecorSheets extends ScenerySheets {
   readonly bucket: SpriteSheet;
   readonly steam: SpriteSheet;
-  readonly smoke: SpriteSheet;
   readonly kennel: SpriteSheet;
   readonly lantern: SpriteSheet;
   readonly woodpile: SpriteSheet;
-  readonly arch: SpriteSheet;
-  readonly portal: SpriteSheet;
 }
 
 /** Одна баня: где сидят персонажи, где плиты, где вход. */
@@ -60,7 +58,9 @@ export interface World {
   readonly circles: readonly Circle[];
   /** Куда можно ходить. */
   readonly bounds: Box;
-  /** Анимация декора: пар и дым, порталы, фонари, вода, птицы, утки. focus — где игрок. */
+  /** Где на воротах порталов доски для надписи. */
+  readonly portalSigns: readonly THREE.Vector3[];
+  /** Анимация декора: пар и дым, порталы, фонари, вода, машины, птицы, утки. focus — где игрок. */
   update(dt: number, focus: THREE.Vector3): void;
 }
 
@@ -97,7 +97,7 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
 
   scene.add(buildGround(textures.grass, unit(textures.grass)));
 
-  // --- мемная дорожка: от портала до портала ---
+  // --- мемная дорожка: от портала до портала, концы — под площадками порталов ---
   const carpetLength = CARPET.endX - CARPET.startX + 2;
   const carpetTexture = textures.carpet.clone();
   carpetTexture.wrapT = THREE.ClampToEdgeWrapping;
@@ -108,16 +108,8 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
   );
   carpet.position.set((CARPET.startX + CARPET.endX) / 2, 0.01, CARPET.z);
   scene.add(carpet);
-  // порталы: отсюда персонажи выходят, туда уходят
-  const portals: BillboardSprite[] = [];
-  for (const x of [CARPET.startX - 0.6, CARPET.endX + 0.6]) {
-    const portal = new BillboardSprite(decor.portal);
-    portal.object.position.set(x, 0, CARPET.z - 0.35);
-    scene.add(portal.object);
-    portals.push(portal);
-    place(decor.arch, x, CARPET.z - 0.25, 0, 0);
-    shadows.push({ x: x - 1.4, z: CARPET.z - 0.2, diameter: 0.7 }, { x: x + 1.3, z: CARPET.z - 0.2, diameter: 0.7 });
-  }
+  const portals = buildPortals(scene, textures);
+  circles.push(...portals.circles);
 
   // --- бани ---
   const addBlock = (
@@ -248,7 +240,6 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
   for (const [sheet, items] of statics) scene.add(createBillboardBatch(sheet, items));
   scene.add(createShadowBatch(shadows));
 
-  let portalTime = 0;
   return {
     home,
     neighbors,
@@ -256,12 +247,12 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
     boxes,
     circles,
     bounds: WALK_BOUNDS,
+    portalSigns: portals.signs,
     update: (dt, focus) => {
       for (const emitter of emitters) emitter.update(dt);
       const opacity = 0.28 + Math.sin(performance.now() / 150) * 0.08;
       for (const barrier of barriers) if (barrier.visible) (barrier.material as THREE.MeshBasicMaterial).opacity = opacity;
-      portalTime += dt;
-      for (const portal of portals) portal.setFrame(Math.floor(portalTime * 8) % 3);
+      portals.update(dt);
       for (const f of flickers) {
         f.time += dt;
         f.sprite.setFrame(Math.sin(f.time * 9) + Math.sin(f.time * 23) > 1.2 ? 1 : 0);

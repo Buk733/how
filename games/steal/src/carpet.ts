@@ -7,6 +7,7 @@ import { RARITIES } from './data/rarity';
 import { checkPurchase, unitIncome, unitName, unitPrice } from './economy';
 import type { Brainrot } from './entities/brainrot';
 import type { Home } from './home';
+import { walkAlong, walkPoint } from './layout';
 import { tierOf } from './neighbors';
 import type { Spawner } from './spawner';
 
@@ -33,12 +34,12 @@ export class Carpet {
   /** Чтобы дорожка не была пустой в первые секунды. */
   prefill(): void {
     const span = CARPET.endX - CARPET.startX;
-    for (let i = 0; i < 9; i++) this.spawn(this.spawner.pick(), CARPET.startX + span * (0.06 + i * 0.105), false);
+    for (let i = 0; i < 9; i++) this.spawn(this.spawner.pick(), walkAlong(CARPET.startX + span * (0.06 + i * 0.105)), false);
   }
 
   update(dt: number): void {
     const next = this.spawner.update(dt);
-    if (next && this.walkers.length < CARPET.maxWalkers) this.spawn(next, CARPET.startX, true, this.ctx.rng.chance(GOLD.carpetChance));
+    if (next && this.walkers.length < CARPET.maxWalkers) this.spawn(next, 0, true, this.ctx.rng.chance(GOLD.carpetChance));
 
     for (let i = this.walkers.length - 1; i >= 0; i--) {
       const walker = this.walkers[i];
@@ -89,7 +90,7 @@ export class Carpet {
     for (let i = this.walkers.length - 1; i >= 0; i--) {
       if (Math.abs(this.walkers[i].position.x - x) < 3.5) this.ctx.removeBrainrot(this.walkers.splice(i, 1)[0]);
     }
-    this.tutorialWalker = this.spawn(cheapest, x, false);
+    this.tutorialWalker = this.spawn(cheapest, walkAlong(x), false);
   }
 
   private buy(walker: Brainrot): void {
@@ -111,9 +112,12 @@ export class Carpet {
     this.ctx.tutorialEvent('bought');
   }
 
-  private spawn(def: CharacterDef, x: number, announce: boolean, gold = false): Brainrot {
+  /** Выпускает персонажа, прошедшего along по дорожке (0 — только выходит из западной воронки). */
+  private spawn(def: CharacterDef, along: number, announce: boolean, gold = false): Brainrot {
     const walker = this.ctx.createBrainrot(def, gold);
-    walker.position.set(x, 0, CARPET.z);
+    const p = walkPoint(along);
+    walker.along = along;
+    walker.position.set(p.x, 0, p.z);
     const rarity = RARITIES[def.rarity];
     const label = this.ctx.labels.create(gold ? 'walker-tag gold' : 'walker-tag');
     const name = document.createElement('b');

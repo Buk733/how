@@ -3,6 +3,7 @@ import type { Label } from '@engine/labels';
 import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
 import { CARPET } from '../config';
 import type { CharacterDef } from '../data/characters';
+import { WALK_LENGTH, walkPoint } from '../layout';
 import { Actor } from './actor';
 
 /** Блёстки «Голды»: вспыхивают по очереди в случайных местах вокруг персонажа. */
@@ -55,6 +56,8 @@ export class Brainrot extends Actor {
   state: BrainrotState = 'walking';
   /** Номер места на полке (−1 — пока нигде). */
   slot = -1;
+  /** Сколько прошёл по дорожке от западной воронки. */
+  along = 0;
   /** Дошёл до конца дорожки — пора убрать со сцены. */
   gone = false;
   /** Подпись над головой. */
@@ -80,6 +83,7 @@ export class Brainrot extends Actor {
   sendTo(slot: number, path: readonly THREE.Vector3[]): void {
     this.slot = slot;
     this.state = 'toSeat';
+    this.root.scale.setScalar(1);
     this.shadow.visible = true;
     this.path.length = 0;
     this.path.push(...path.map((p) => p.clone()));
@@ -88,6 +92,7 @@ export class Brainrot extends Actor {
   /** Сразу сажает на место (например, при загрузке сохранения). */
   seatAt(slot: number, seat: THREE.Vector3): void {
     this.slot = slot;
+    this.root.scale.setScalar(1);
     this.state = 'seated';
     this.shadow.visible = true;
     this.position.copy(seat);
@@ -96,6 +101,7 @@ export class Brainrot extends Actor {
   /** Персонажа подняли и несут: позицию каждый кадр задаёт тот, кто несёт. */
   pickUp(): void {
     this.state = 'carried';
+    this.root.scale.setScalar(1);
     this.slot = -1;
     this.shadow.visible = false;
     this.path.length = 0;
@@ -106,9 +112,14 @@ export class Brainrot extends Actor {
     this.sparkle?.update(dt);
     let moving = false;
     if (this.state === 'walking') {
-      this.position.x += CARPET.walkSpeed * dt;
+      this.along += CARPET.walkSpeed * dt;
+      const p = walkPoint(this.along);
+      this.position.set(p.x, 0, p.z);
       moving = true;
-      if (this.position.x > CARPET.endX) this.gone = true;
+      if (this.along >= WALK_LENGTH) this.gone = true;
+      // выходит из воронки — вырастает, уходит в воронку — съёживается
+      const fromPortal = Math.min(this.along, WALK_LENGTH - this.along);
+      this.root.scale.setScalar(Math.min(1, 0.3 + fromPortal * 0.9));
     } else if (this.state === 'toSeat') {
       moving = this.followPath(dt);
       if (!moving) this.state = 'seated';

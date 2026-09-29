@@ -1,34 +1,42 @@
 import * as THREE from 'three';
 import type { BatchItem } from '@engine/batch';
-import type { Circle, PointXZ } from '@engine/math';
+import { rasterizeMarks, type GroundMark, type MarkStyle } from '@engine/ground-marks';
+import type { Box, Circle, PointXZ } from '@engine/math';
 import { Rng } from '@engine/rng';
 import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
-import { CARPET, NEIGHBORS, PIXELS_PER_UNIT } from './config';
+import { CARPET, PIXELS_PER_UNIT } from './config';
 import {
+  BANYA_XS,
   BUS_STOP,
+  CAR_TRACKS,
+  DIRT_PATCHES,
   GARDEN_BEDS,
-  GARDEN_PATH_X,
   GLADE,
   GROUND,
   inPond,
   isOpen,
+  MARKS_REGION,
   OPEN_AREAS,
+  onTrail,
   PIER,
-  PIER_PATH_X,
   POND,
+  PORTAL,
+  PORTAL_XS,
+  ROAD,
+  ROAD_REGION,
+  roadZ,
   SCARECROW,
   SOUTH,
   SPOTS,
-  TRAIL,
+  TRAILS,
   WINDMILL,
   WINDMILL_CLEARING,
   YARD,
 } from './layout';
+import { createTraffic, type VehicleTextures } from './vehicles';
 
-export interface SceneryTextures {
-  readonly path: THREE.Texture;
+export interface SceneryTextures extends VehicleTextures {
   readonly water: THREE.Texture;
-  readonly soil: THREE.Texture;
   readonly planks: THREE.Texture;
 }
 
@@ -56,7 +64,8 @@ export interface ScenerySheets {
   readonly duck: SpriteSheet;
   readonly bird: SpriteSheet;
   readonly butterfly: SpriteSheet;
-  readonly tractor: SpriteSheet;
+  /** Дым из труб и выхлопа трактора. */
+  readonly smoke: SpriteSheet;
 }
 
 /** Как добавлять неподвижный декор: в общую пачку мира, с тенью и препятствием. */
@@ -65,15 +74,27 @@ export interface SceneryBuilder {
   readonly circles: Circle[];
 }
 
-/** Живой декор: мельница, пугало, утки, птицы, бабочки, трактор, вода. */
+/** Живой декор: мельница, пугало, утки, птицы, бабочки, машины на дороге, вода. */
 export interface Scenery {
   update(dt: number, focus: THREE.Vector3): void;
 }
 
 type Animate = (dt: number, focus: THREE.Vector3) => void;
 
-/** Где стоят бани (там и у входов не растут цветы). */
-const BANYA_XS = [0, ...NEIGHBORS.map((n) => n.x)];
+// Как выглядят следы на земле.
+/** Утоптанная земля тропинок и площадок. */
+const DIRT: MarkStyle = { fill: ['#caa87a', '#c2a072', '#d3b387'], rim: '#b8966a', specks: ['#a89878', '#e0c79a'] };
+/** Просёлок: земля потемнее и две колеи. */
+const ROAD_DIRT: MarkStyle = { fill: ['#bfa27a', '#b69a72', '#c8ad85'], rim: '#a3875f', specks: ['#8f8272', '#dcc7a0'] };
+const RUT: MarkStyle = { fill: ['#9c8058', '#8f7552'], coverage: 0.8, fade: 0.1 };
+/** Грядка: борозды вдоль. */
+const SOIL: MarkStyle = { fill: ['#7a4a3a'], rim: '#5a3a38', furrows: ['#5a3a38', '#8a5a44', '#8a5a44', '#7a4a3a'], specks: ['#9a6a4a'] };
+/** Песок на берегу пруда. */
+const SAND: MarkStyle = { fill: ['#dcc38c', '#d4b97e', '#e3cc98'], rim: '#b8966a', specks: ['#f0e0b0', '#bfa070'] };
+/** Колея за старой машиной: примятая трава и земля. */
+const TRACK: MarkStyle = { fill: ['#8fa85a', '#a89a64'], coverage: 0.75, fade: 0.12 };
+/** Картинка следов — кусками не шире этого (единиц), чтобы влезть в любую видеокарту. */
+const MARKS_CHUNK = 64;
 
 /** Расстояние от точки до ближайшего открытого места. */
 function depthInForest(p: PointXZ): number {
@@ -90,27 +111,12 @@ function depthInForest(p: PointXZ): number {
 
 /**
  * Всё, что вокруг бань: густой лес во все стороны, лесная поляна, огород с пугалом,
- * пруд с мостками и утками, мельница на опушке, забор, дорога с остановкой и трактором.
+ * пруд с мостками и утками, мельница на опушке, забор, дорога с остановкой, трактором и легковушкой.
  */
 export function buildScenery(scene: THREE.Scene, sheets: ScenerySheets, textures: SceneryTextures, builder: SceneryBuilder): Scenery {
   const rng = new Rng(2026);
   const animated: Animate[] = [];
   const { add } = builder;
-  const unit = (texture: THREE.Texture) => (texture.image as { width: number }).width / PIXELS_PER_UNIT;
-  let stripIndex = 0;
-
-  /** Полоса на земле (тропинка, дорога, грядка) от from до to шириной width. */
-  const strip = (texture: THREE.Texture, from: PointXZ, to: PointXZ, width: number) => {
-    const length = Math.hypot(to.x - from.x, to.z - from.z);
-    const map = texture.clone();
-    map.wrapT = THREE.ClampToEdgeWrapping;
-    map.repeat.set(length / unit(texture), 1);
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(length, width).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map, alphaTest: 0.5 }));
-    // у каждой полосы своя высота — на перекрёстках они не мерцают
-    mesh.position.set((from.x + to.x) / 2, 0.005 + stripIndex++ * 0.0004, (from.z + to.z) / 2);
-    mesh.rotation.y = Math.atan2(-(to.z - from.z), to.x - from.x);
-    scene.add(mesh);
-  };
 
   // ---------------------------------------------------------------- лес
   const inForest = (p: PointXZ) =>
@@ -172,14 +178,14 @@ export function buildScenery(scene: THREE.Scene, sheets: ScenerySheets, textures
   // ---------------------------------------------------------------- цветы и трава на открытых местах
   const nearBanya = (p: PointXZ) => BANYA_XS.some((cx) => Math.abs(p.x - cx) < 9.6 && p.z > -8.2 && p.z < 4.3);
   const onCarpet = (p: PointXZ) => Math.abs(p.z - CARPET.z) < CARPET.width / 2 + 0.5 && Math.abs(p.x) < CARPET.endX + 3;
-  const onTrail = (p: PointXZ) => Math.abs(p.x - (TRAIL.minX + TRAIL.maxX) / 2) < 1.5 && p.z < 4.3 && p.z > TRAIL.minZ;
   const inBed = (p: PointXZ) => GARDEN_BEDS.some((b) => p.x > b.minX - 0.5 && p.x < b.maxX + 0.5 && p.z > b.minZ - 0.5 && p.z < b.maxZ + 0.5);
   const nearSpot = (p: PointXZ) => Object.values(SPOTS).some((s) => Math.hypot(p.x - s.x, p.z - s.z) < 1.6);
-  const onRoad = (p: PointXZ) => Math.abs(p.z - SOUTH.roadZ) < SOUTH.roadWidth / 2 + 0.4 || Math.abs(p.z - SOUTH.fenceZ) < 0.5;
+  const nearPortal = (p: PointXZ) => PORTAL_XS.some((x) => Math.hypot(p.x - x, p.z - CARPET.z) < PORTAL.padRadius + 0.5 || (Math.abs(p.x - x) < 2 && Math.abs(p.z - PORTAL.gateZ) < 0.8));
+  const onRoad = (p: PointXZ) => Math.abs(p.z - roadZ(p.x)) < SOUTH.roadWidth / 2 + 0.4 || Math.abs(p.z - SOUTH.fenceZ) < 0.5;
   const meadow = (p: PointXZ) => {
     const south = p.z > YARD.maxZ - 0.3 && p.z < SOUTH.forestFromZ - 0.5 && Math.abs(p.x) < GROUND.maxX - 2;
     if (!south && !isOpen(p, -0.4)) return false;
-    return !nearBanya(p) && !onCarpet(p) && !onTrail(p) && !inBed(p) && !nearSpot(p) && !onRoad(p) && !inPond(p, 1.25);
+    return !nearBanya(p) && !onCarpet(p) && !onTrail(p, 0.35) && !inBed(p) && !nearSpot(p) && !nearPortal(p) && !onRoad(p) && !inPond(p, 1.25);
   };
   const scatterArea = (minX: number, maxX: number, minZ: number, maxZ: number, clumps: number) => {
     for (let i = 0; i < clumps; i++) {
@@ -200,21 +206,12 @@ export function buildScenery(scene: THREE.Scene, sheets: ScenerySheets, textures
   scatterArea(GLADE.minX, GLADE.maxX, GLADE.minZ, GLADE.maxZ, 40);
   scatterArea(GROUND.minX + 2, GROUND.maxX - 2, YARD.maxZ, SOUTH.forestFromZ, 170);
 
-  // ---------------------------------------------------------------- тропинки
-  const trailX = (TRAIL.minX + TRAIL.maxX) / 2;
-  strip(textures.path, { x: trailX, z: CARPET.z - CARPET.width / 2 }, { x: trailX, z: TRAIL.minZ - 0.6 }, 2.2);
-  strip(textures.path, { x: trailX, z: TRAIL.minZ - 0.3 }, { x: SPOTS.hut.x + 1.2, z: SPOTS.hut.z + 1 }, 1.8);
-  for (const cx of BANYA_XS) strip(textures.path, { x: cx, z: 1.2 }, { x: cx, z: CARPET.z - CARPET.width / 2 }, 3);
-  const pierZ = (PIER.minZ + PIER.maxZ) / 2;
-  strip(textures.path, { x: PIER_PATH_X, z: CARPET.z - CARPET.width / 2 }, { x: PIER_PATH_X, z: pierZ - 0.5 }, 1.8);
-  strip(textures.path, { x: PIER_PATH_X - 0.5, z: pierZ }, { x: PIER.minX + 0.3, z: pierZ }, 1.6);
-  strip(textures.path, { x: GARDEN_PATH_X, z: CARPET.z - CARPET.width / 2 }, { x: GARDEN_PATH_X, z: GARDEN_BEDS[2].maxZ + 0.4 }, 1.8);
-  strip(textures.path, { x: GROUND.minX, z: SOUTH.roadZ }, { x: GROUND.maxX, z: SOUTH.roadZ }, SOUTH.roadWidth);
+  // ---------------------------------------------------------------- тропинки, грядки, песок, дорога
+  buildGroundMarks(scene);
 
   // ---------------------------------------------------------------- огород
   GARDEN_BEDS.forEach((bed, row) => {
     const z = (bed.minZ + bed.maxZ) / 2;
-    strip(textures.soil, { x: bed.minX, z }, { x: bed.maxX, z }, bed.maxZ - bed.minZ);
     for (let x = bed.minX + 0.6; x <= bed.maxX - 0.4; x += 1.2) add(sheets.crops, { x: x + rng.range(-0.1, 0.1), z: z + 0.1, column: row }, 0.6);
   });
   const scarecrow = new BillboardSprite(sheets.scarecrow);
@@ -226,13 +223,7 @@ export function buildScenery(scene: THREE.Scene, sheets: ScenerySheets, textures
     scarecrow.setFrame(Math.floor(scarecrowTime / 1.3) % 2);
   });
 
-  // ---------------------------------------------------------------- пруд
-  const shore = new THREE.Mesh(
-    new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2),
-    new THREE.MeshBasicMaterial({ color: '#b8966a', polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }),
-  );
-  shore.scale.set(POND.rx + 0.55, 1, POND.rz + 0.5);
-  shore.position.set(POND.x, 0.004, POND.z);
+  // ---------------------------------------------------------------- пруд (песчаный берег — в следах на земле)
   const waterMap = repeated(textures.water, POND.rx, POND.rz);
   const water = new THREE.Mesh(
     new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2),
@@ -240,7 +231,7 @@ export function buildScenery(scene: THREE.Scene, sheets: ScenerySheets, textures
   );
   water.scale.set(POND.rx, 1, POND.rz);
   water.position.set(POND.x, 0.012, POND.z);
-  scene.add(shore, water);
+  scene.add(water);
   animated.push((dt) => {
     waterMap.offset.x = (waterMap.offset.x + dt * 0.04) % 1;
     waterMap.offset.y = Math.sin(performance.now() / 2500) * 0.05;
@@ -327,26 +318,7 @@ export function buildScenery(scene: THREE.Scene, sheets: ScenerySheets, textures
   // ---------------------------------------------------------------- южный край: забор, дорога, остановка
   for (let x = GROUND.minX + 1; x <= GROUND.maxX - 1; x += 2) add(sheets.fence, { x, z: SOUTH.fenceZ });
   add(sheets.busStop, BUS_STOP, 2);
-  const tractor = new BillboardSprite(sheets.tractor);
-  tractor.object.visible = false;
-  scene.add(tractor.object);
-  let tractorWait = rng.range(5, 15);
-  let tractorX = GROUND.minX - 2;
-  animated.push((dt) => {
-    if (tractorWait > 0) {
-      tractorWait -= dt;
-      tractor.object.visible = false;
-      return;
-    }
-    tractorX += dt * 3.2;
-    tractor.object.visible = true;
-    tractor.object.position.set(tractorX, 0, SOUTH.roadZ + 0.3);
-    tractor.setFrame(Math.abs(Math.floor(tractorX * 2)) % 2);
-    if (tractorX > GROUND.maxX + 2) {
-      tractorX = GROUND.minX - 2;
-      tractorWait = rng.range(25, 60);
-    }
-  });
+  animated.push(createTraffic(scene, textures, sheets.smoke, rng));
 
   // ---------------------------------------------------------------- птицы и бабочки
   animated.push(createBirds(scene, sheets.bird, rng));
@@ -367,6 +339,52 @@ export function buildScenery(scene: THREE.Scene, sheets: ScenerySheets, textures
       for (const animate of animated) animate(dt, focus);
     },
   };
+}
+
+/**
+ * Следы на земле — тропинки со скруглёнными и сходящими на нет концами, грядки, песок у пруда,
+ * колея, просёлок — рисуются при запуске в пиксельные картинки.
+ */
+function buildGroundMarks(scene: THREE.Scene): void {
+  const yard: GroundMark[] = [
+    { style: SAND, ellipse: { x: POND.x, z: POND.z }, rx: POND.rx + 0.6, rz: POND.rz + 0.55 },
+    ...GARDEN_BEDS.map((rect) => ({ style: SOIL, rect, radius: 0.3 })),
+    // площадки и тропинки одного стиля подряд — сливаются без края на стыках
+    ...DIRT_PATCHES.map((p) => ({ style: DIRT, ellipse: p, rx: p.rx, rz: p.rz })),
+    ...TRAILS.map((t) => ({ style: DIRT, line: t.points, width: t.width, taper: t.taper })),
+    ...CAR_TRACKS.map((t) => ({ style: TRACK, line: t.points, width: t.width, taper: t.taper })),
+  ];
+  addMarks(scene, yard, MARKS_REGION);
+  const road: GroundMark[] = [
+    { style: ROAD_DIRT, line: ROAD.points, width: ROAD.width },
+    { style: ROAD_DIRT, ellipse: { x: BUS_STOP.x, z: BUS_STOP.z + 0.55 }, rx: 1.9, rz: 0.8 },
+    ...[-0.55, 0.55].map((side) => ({ style: RUT, line: ROAD.points.map((p) => ({ x: p.x, z: p.z + side })), width: 0.32 })),
+  ];
+  addMarks(scene, road, ROAD_REGION);
+}
+
+/** Кладёт следы на землю картинками-кусками не шире MARKS_CHUNK. */
+function addMarks(scene: THREE.Scene, marks: readonly GroundMark[], region: Box): void {
+  const chunks = Math.ceil((region.maxX - region.minX) / MARKS_CHUNK);
+  for (let c = 0; c < chunks; c++) {
+    // границы кусков — по целым единицам, чтобы пиксели соседних кусков совпали
+    const minX = Math.round(region.minX + ((region.maxX - region.minX) * c) / chunks);
+    const maxX = Math.round(region.minX + ((region.maxX - region.minX) * (c + 1)) / chunks);
+    const chunk = { ...region, minX, maxX };
+    const pixels = rasterizeMarks(marks, chunk, PIXELS_PER_UNIT);
+    const texture = new THREE.DataTexture(pixels.data, pixels.width, pixels.height, THREE.RGBAFormat);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(maxX - minX, region.maxZ - region.minZ).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5 }),
+    );
+    mesh.position.set((minX + maxX) / 2, 0.005, (region.minZ + region.maxZ) / 2);
+    scene.add(mesh);
+  }
 }
 
 function repeated(texture: THREE.Texture, u: number, v: number): THREE.Texture {

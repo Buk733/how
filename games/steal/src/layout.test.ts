@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import type { Circle, PointXZ } from '@engine/math';
-import { PLAYER } from './config';
-import { FOREST_WALLS, GARDEN_PATH_X, GLADE, isOpen, LANDMARK_CIRCLES, PIER, PIER_PATH_X, pondColliders, POND, SPOTS, TRAIL, WALK_BOUNDS, YARD } from './layout';
+import { CARPET, PLAYER } from './config';
+import {
+  FOREST_WALLS,
+  GARDEN_PATH_X,
+  GLADE,
+  isOpen,
+  LANDMARK_CIRCLES,
+  onTrail,
+  PIER,
+  PIER_PATH_X,
+  pondColliders,
+  POND,
+  PORTAL,
+  PORTAL_XS,
+  SPOTS,
+  TRAIL,
+  TRAILS,
+  WALK_BOUNDS,
+  WALK_LENGTH,
+  walkAlong,
+  walkPoint,
+  YARD,
+} from './layout';
 
 const blockedBy = (circles: readonly Circle[], p: PointXZ) => circles.some((c) => Math.hypot(c.x - p.x, c.z - p.z) < c.radius + PLAYER.radius);
 const inWall = (p: PointXZ) => FOREST_WALLS.some((b) => p.x > b.minX && p.x < b.maxX && p.z > b.minZ && p.z < b.maxZ);
@@ -50,4 +71,37 @@ describe('карта мира', () => {
   it('тропинки в огород и к пруду — во дворе', () => {
     for (const x of [GARDEN_PATH_X, PIER_PATH_X]) expect(isOpen({ x, z: 2 })).toBe(true);
   });
+
+  it('тропинки начинаются под дорожкой, а к пасхалкам подходят вплотную', () => {
+    const underCarpet = (p: PointXZ) => Math.abs(p.z - CARPET.z) < CARPET.width / 2;
+    const starts = TRAILS.filter((t) => underCarpet(t.points[0]) || underCarpet(t.points[t.points.length - 1]));
+    // к каждой бане, в лес, в огород и к пруду
+    expect(starts.length).toBe(6);
+    for (const spot of [SPOTS.well, SPOTS.hut, SPOTS.stone, SPOTS.campfire]) {
+      const near = [0, 1, 2, 3, 4, 5, 6, 7].some((k) => onTrail({ x: spot.x + Math.cos(k * 0.8) * 1.2, z: spot.z + Math.sin(k * 0.8) * 1.2 }, 0.3));
+      expect(near).toBe(true);
+    }
+  });
 });
+
+describe('путь по дорожке', () => {
+  it('из западной воронки — на дорожку, по ней — в восточную воронку', () => {
+    const [west, east] = PORTAL_XS;
+    const start = walkPoint(0);
+    expect(start.x).toBe(west);
+    expect(start.z).toBeCloseTo(PORTAL.gateZ + 0.2);
+    expect(walkPoint(walkAlong(0))).toEqual({ x: 0, z: CARPET.z });
+    const end = walkPoint(WALK_LENGTH);
+    expect(end.x).toBe(east);
+    expect(end.z).toBeCloseTo(PORTAL.gateZ + 0.2);
+  });
+
+  it('идёт без рывков: соседние точки рядом', () => {
+    for (let along = 0; along < WALK_LENGTH; along += 0.25) {
+      const a = walkPoint(along);
+      const b = walkPoint(along + 0.25);
+      expect(Math.hypot(b.x - a.x, b.z - a.z)).toBeLessThanOrEqual(0.2501);
+    }
+  });
+});
+

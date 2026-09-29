@@ -138,3 +138,18 @@ export function segmentHitsBox(a: PointXZ, b: PointXZ, box: Box, inflate = 0): b
   }
   return true;
 }
+
+/** Расстояние от точки до ломаной (до ближайшего её отрезка). */
+export function distanceToPolyline(p: PointXZ, points: readonly PointXZ[]): number {
+  if (points.length === 1) return distanceXZ(p, points[0]);
+  let best = Infinity;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const t = clamp(((p.x - a.x) * dx + (p.z - a.z) * dz) / (dx * dx + dz * dz || 1), 0, 1);
+    best = Math.min(best, Math.hypot(p.x - (a.x + dx * t), p.z - (a.z + dz * t)));
+  }
+  return best;
+}

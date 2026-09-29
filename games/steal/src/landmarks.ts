@@ -8,16 +8,18 @@ import type { Action, GameContext } from './context';
 import { SECRETS, type SecretDef } from './data/secrets';
 import { totalIncome } from './economy';
 import { SpeechBubble } from './entities/bubble';
-import { GARDEN_PATH_X, PIER_PATH_X, SPOTS, TRAIL } from './layout';
+import { CAR_HEADING, GARDEN_PATH_X, PIER_PATH_X, SPOTS, TRAIL } from './layout';
 import { BEAR_TUNE } from './music';
 import { findSecret, SECRET_COUNT } from './secrets';
+import { Car, CAR_PAINT, type VehicleTextures } from './vehicles';
 
 /** Id наигрыша медведя: пока он звучит, фоновая мелодия притихает. */
 export const BEAR_TUNE_ID = 'bear-tune';
 const TUNE_SAMPLE_RATE = 22050;
 
-/** С какого расстояния можно потрогать пасхалку. */
+/** С какого расстояния можно потрогать пасхалку (машину — издалека: она длинная). */
 const REACH = 2.3;
+const CAR_REACH = 3;
 
 export interface LandmarkSheets {
   readonly hut: SpriteSheet;
@@ -25,17 +27,16 @@ export interface LandmarkSheets {
   readonly campfire: SpriteSheet;
   readonly well: SpriteSheet;
   readonly outhouse: SpriteSheet;
-  readonly oldCar: SpriteSheet;
   readonly fairyStone: SpriteSheet;
   readonly fisherman: SpriteSheet;
   readonly signpost: SpriteSheet;
 }
 
-/** Одна пасхалка: картинка, реплика над ней, что происходит по кнопке и как она живёт сама. */
+/** Одна пасхалка: реплика над ней, что происходит по кнопке и как она живёт сама. */
 interface Landmark {
   readonly secret: SecretDef;
   readonly spot: PointXZ;
-  readonly sprite: BillboardSprite;
+  readonly reach: number;
   readonly bubble: SpeechBubble;
   /** Высота реплики над землёй. */
   readonly bubbleHeight: number;
@@ -61,17 +62,13 @@ export class Landmarks {
   private readonly landmarks: Landmark[] = [];
   private tuneReady = false;
 
-  constructor(ctx: GameContext, sheets: LandmarkSheets) {
+  constructor(ctx: GameContext, sheets: LandmarkSheets, vehicles: VehicleTextures) {
     this.ctx = ctx;
-    const make = (id: keyof typeof SPOTS & string, sheet: SpriteSheet, bubbleHeight: number) => {
-      const spot = SPOTS[id];
-      const sprite = new BillboardSprite(sheet);
-      sprite.object.position.set(spot.x, 0, spot.z);
-      ctx.scene.add(sprite.object);
+    const register = (id: keyof typeof SPOTS & string, bubbleHeight: number, reach = REACH) => {
       const landmark: Landmark = {
         secret: secretById(id),
-        spot,
-        sprite,
+        spot: SPOTS[id],
+        reach,
         bubble: new SpeechBubble(ctx.labels.create('say-bubble landmark-say')),
         bubbleHeight,
         busy: 0,
@@ -81,6 +78,13 @@ export class Landmarks {
       };
       this.landmarks.push(landmark);
       return landmark;
+    };
+    /** Пасхалка-спрайт. */
+    const make = (id: keyof typeof SPOTS & string, sheet: SpriteSheet, bubbleHeight: number) => {
+      const sprite = new BillboardSprite(sheet);
+      sprite.object.position.set(SPOTS[id].x, 0, SPOTS[id].z);
+      ctx.scene.add(sprite.object);
+      return { ...register(id, bubbleHeight), sprite };
     };
 
     // --- камень на распутье: надпись по-сказочному, и она не врёт
@@ -182,18 +186,23 @@ export class Landmarks {
       fisher.sprite.setFrame(Math.sin(fisher.time * 0.8) > 0.97 ? 1 : 0);
     };
 
-    // --- старая «копейка» в кустах: посигналить и мигнуть фарами
-    const car = make('car', sheets.oldCar, 1.7);
+    // --- старая «копейка» в кустах: посигналить и мигнуть фарами, кузов качнётся на рессорах
+    const car = register('car', 2.3, CAR_REACH);
+    const model = new Car(vehicles, CAR_PAINT.oldBlue);
+    model.root.position.set(SPOTS.car.x, 0, SPOTS.car.z);
+    model.root.rotation.y = CAR_HEADING;
+    ctx.scene.add(model.root);
     let blink = 0;
     car.run = () => {
-      blink = 1;
+      blink = 1.2;
       car.busy = 1.4;
       this.ctx.audio.blip('horn');
       car.bubble.say('Би-бип!', 1.2);
     };
     car.animate = (dt) => {
       blink = Math.max(0, blink - dt);
-      car.sprite.setFrame(blink > 0 && Math.floor(blink * 6) % 2 === 0 ? 1 : 0);
+      model.setLights(blink > 0 && Math.floor(blink * 6) % 2 === 0);
+      model.setLift(blink > 0 ? Math.abs(Math.sin(blink * 14)) * 0.05 * blink : 0);
     };
 
     // указатели с надписями: куда идти за пасхалками
@@ -202,14 +211,11 @@ export class Landmarks {
     this.signpost(sheets.signpost, trailX + 1.6, signZ, '↑ Тропинка в лес');
     this.signpost(sheets.signpost, GARDEN_PATH_X + 1.5, signZ, '↑ Огород');
     this.signpost(sheets.signpost, PIER_PATH_X - 1.5, signZ, '↑ Пруд');
-    // таблички на арках порталов
-    for (const [x, text] of [
-      [CARPET.startX - 0.6, 'Мемный портал'],
-      [CARPET.endX + 0.6, 'Мемный портал'],
-    ] as const) {
+    // надписи на воротах порталов
+    for (const sign of ctx.world.portalSigns) {
       const label = this.ctx.labels.create('area-sign portal-sign');
-      label.element.textContent = text;
-      label.anchor.set(x, 2.3, CARPET.z - 0.25);
+      label.element.textContent = 'Мемный портал';
+      label.anchor.copy(sign);
     }
   }
 
@@ -217,10 +223,10 @@ export class Landmarks {
   findAction(): Action | null {
     const player = this.ctx.player.position;
     let best: Landmark | null = null;
-    let bestDistance = REACH;
+    let bestDistance = Infinity;
     for (const landmark of this.landmarks) {
       const distance = distanceXZ(player, landmark.spot);
-      if (distance < bestDistance) {
+      if (distance < landmark.reach && distance < bestDistance) {
         best = landmark;
         bestDistance = distance;
       }

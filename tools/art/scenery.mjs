@@ -549,52 +549,6 @@ export function scarecrow() {
   return s.img;
 }
 
-/** Старая «копейка» 40×22: 2 кадра — фары погашены и мигнули. */
-export function oldCar() {
-  const s = sheet(40, 22, 2);
-  for (let i = 0; i < 2; i++) {
-    const fr = s.frame(i);
-    const paint = '#9ec4d8';
-    const shade = '#6f98b0';
-    // кузов
-    for (let y = 10; y <= 17; y++) for (let x = 1; x <= 38; x++) fr.set(x, y, y >= 16 ? shade : y === 10 ? '#c4e0ee' : paint);
-    // кабина
-    for (let y = 3; y <= 10; y++) {
-      const inset = Math.max(0, 5 - (y - 3));
-      for (let x = 9 + inset; x <= 29 - Math.floor(inset / 2); x++) fr.set(x, y, paint);
-    }
-    fr.rect(13, 5, 7, 5, '#b7e0f5');
-    fr.rect(21, 5, 6, 5, '#b7e0f5');
-    fr.set(14, 6, C.white);
-    fr.set(22, 6, C.white);
-    // ржавчина и дверные щели
-    for (const [x, y] of [[4, 15], [5, 15], [5, 14], [33, 16], [34, 15], [22, 16]]) fr.set(x, y, '#b8573c');
-    fr.line(20, 10, 20, 16, shade);
-    fr.set(18, 12, C.silver);
-    fr.set(26, 12, C.silver);
-    // бамперы и фары
-    fr.rect(0, 15, 3, 2, C.silver);
-    fr.rect(37, 15, 3, 2, C.silver);
-    fr.rect(37, 11, 2, 3, i === 1 ? C.yellow : '#e8dcc0');
-    if (i === 1) {
-      fr.set(39, 11, '#fff0a8');
-      fr.set(39, 13, '#fff0a8');
-    }
-    fr.rect(0, 11, 2, 2, C.red);
-    // колёса
-    for (const cx of [9, 30]) {
-      fr.ellipse(cx, 18, 3.6, 3.6, (nx, ny) => (Math.hypot(nx, ny) < 0.45 ? C.silver : C.black));
-    }
-    // трава у колёс
-    for (const x of [4, 12, 26, 34]) {
-      fr.set(x, 20, C.green);
-      fr.set(x + 1, 19, C.lime);
-    }
-    fr.outline();
-  }
-  return s.img;
-}
-
 /** Камень на распутье 28×20: валун с высеченными строчками и мхом. */
 export function fairyStone() {
   const s = sheet(28, 20, 1);
@@ -874,46 +828,6 @@ export function woodpile() {
   return s.img;
 }
 
-/** Арка над дорожкой 56×52: столбы, балка с доской для надписи, красная крыша. */
-export function arch() {
-  const s = sheet(56, 52, 1);
-  const fr = s.frame(0);
-  for (const x0 of [3, 47]) {
-    for (let y = 9; y <= 51; y++) for (let x = x0; x < x0 + 6; x++) fr.set(x, y, x === x0 ? '#e0b98a' : x >= x0 + 4 ? '#8a5a44' : '#c79466');
-    for (let y = 16; y <= 49; y += 6) fr.rect(x0, y, 6, 1, '#a06a4c');
-  }
-  fr.rect(0, 9, 56, 5, '#8a5a44');
-  fr.rect(0, 9, 56, 1, '#c79466');
-  for (let y = 1; y <= 8; y++) {
-    const inset = 8 - y;
-    for (let x = inset; x <= 55 - inset; x++) fr.set(x, y, (x + y) % 6 === 0 ? '#8f2f45' : C.red);
-  }
-  fr.rect(13, 14, 30, 7, '#e8dcc0');
-  fr.rect(13, 14, 30, 1, C.white);
-  fr.rect(15, 21, 1, 2, C.barkDark);
-  fr.rect(40, 21, 1, 2, C.barkDark);
-  // гирлянда флажков
-  for (let x = 10; x <= 45; x += 4) fr.grid(x, 23 + (Math.abs(x - 28) < 10 ? 1 : 0), ['yy', '.y'], { y: x % 8 ? C.yellow : C.sky });
-  fr.outline();
-  return s.img;
-}
-
-/** Мемный портал 40×40: 3 кадра — закрученная спираль. */
-export function portal() {
-  const s = sheet(40, 40, 3);
-  const bands = ['#5d275d', '#8e5bd6', '#c7a1f0', '#73eff7', '#f4f4f4', '#73eff7', '#c7a1f0', '#8e5bd6'];
-  for (let i = 0; i < 3; i++) {
-    const fr = s.frame(i);
-    fr.ellipse(20, 20, 17, 19.5, (nx, ny) => {
-      const r = Math.hypot(nx, ny);
-      const angle = Math.atan2(ny, nx);
-      const k = Math.floor(((angle / (Math.PI * 2)) * 4 + r * 3 - i / 3) * 2);
-      return r > 0.92 ? '#5d275d' : bands[((k % bands.length) + bands.length) % bands.length];
-    });
-  }
-  return s.img;
-}
-
 /** Забор 32×14: штакетник с двумя перекладинами (стыкуется по горизонтали). */
 export function fence() {
   const s = sheet(32, 14, 1);
@@ -977,34 +891,6 @@ export function crops() {
   return s.img;
 }
 
-/** Трактор 34×26: 2 кадра — колёса крутятся. */
-export function tractor() {
-  const s = sheet(34, 26, 2);
-  for (let i = 0; i < 2; i++) {
-    const fr = s.frame(i);
-    // капот и кабина
-    fr.rect(15, 11, 16, 7, C.red);
-    fr.rect(15, 11, 16, 1, '#e27584');
-    fr.rect(4, 3, 12, 15, C.red);
-    fr.rect(6, 5, 8, 6, '#b7e0f5');
-    fr.set(7, 6, C.white);
-    fr.rect(3, 2, 14, 2, C.shadow);
-    fr.rect(26, 5, 2, 6, C.shadow);
-    fr.rect(29, 13, 3, 2, C.silver);
-    // колёса: большое сзади, маленькое спереди
-    for (const [cx, cy, r] of [[9, 19, 6.5], [26, 21, 4.5]]) {
-      fr.ellipse(cx, cy, r, r, (nx, ny) => {
-        const d = Math.hypot(nx, ny);
-        if (d < 0.35) return C.yellow;
-        const spoke = Math.abs(Math.sin(Math.atan2(ny, nx) * 2 + i * 0.8)) < 0.3;
-        return d > 0.75 ? C.black : spoke ? C.blackLight : C.black;
-      });
-    }
-    fr.outline();
-  }
-  return s.img;
-}
-
 /** Указатель 16×22: столбик и стрелка. */
 export function signpost() {
   const s = sheet(16, 22, 1);
@@ -1047,29 +933,3 @@ export function water() {
   return img.img;
 }
 
-/** Утоптанная земля 32×32 для тропинок: камешки и травинки по краям, края рваные (прозрачные). */
-export function path() {
-  const S = 32;
-  const img = sheet(S, S, 1);
-  const fr = img.frame(0);
-  const rand = rng(52);
-  for (let y = 0; y < S; y++) {
-    for (let x = 0; x < S; x++) {
-      // рваный край: сверху и снизу несколько пикселей травы остаются прозрачными
-      const edge = 2 + Math.round(Math.sin(x * 0.9) + Math.sin(x * 0.37 + 1) * 1.2);
-      if (y < edge || y >= S - edge) continue;
-      const pebble = rand() < 0.05;
-      fr.set(x, y, pebble ? '#a89878' : (x + y * 2) % 11 === 0 ? '#b8966a' : y < edge + 2 || y >= S - edge - 2 ? '#b8966a' : '#caa87a');
-    }
-  }
-  return img.img;
-}
-
-/** Грядка 32×32: борозды пашни. */
-export function soil() {
-  const S = 32;
-  const img = sheet(S, S, 1);
-  const fr = img.frame(0);
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) fr.set(x, y, y % 8 < 2 ? '#5a3a38' : y % 8 < 5 ? '#8a5a44' : '#7a4a3a');
-  return img.img;
-}

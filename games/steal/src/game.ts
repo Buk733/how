@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { loadSpriteSheets, loadTileTexture } from '@engine/assets';
+import { loadPixelTexture, loadSpriteSheets, loadTileTexture } from '@engine/assets';
 import { AudioManager } from '@engine/audio';
 import { FollowCamera } from '@engine/camera';
 import { renderSongGradually } from '@engine/chiptune';
@@ -23,10 +23,12 @@ import { BEAR_TUNE_ID, Landmarks } from './landmarks';
 import { Menus } from './menus';
 import { BANYA_POLKA } from './music';
 import { Neighborhood } from './neighborhood';
+import { PORTAL_TEXTURES } from './portals';
 import { parseSave, TUTORIAL_DONE, type SaveData } from './save';
 import { Spawner } from './spawner';
 import { Hud, type MenuId } from './ui/hud';
 import { broomStun, speedMultiplier } from './upgrades';
+import { VEHICLE_TEXTURES } from './vehicles';
 import { buildWorld, type World } from './world';
 import rareThemeUrl from './sounds/rare-theme.mp3';
 
@@ -73,8 +75,6 @@ const SHEETS = {
   bucket: sheet('bucket', 16, 16, 20),
   lantern: sheet('lantern', 10, 26),
   woodpile: sheet('woodpile', 24, 18),
-  arch: sheet('arch', 56, 52),
-  portal: sheet('portal', 40, 40, 17),
   // лес и луга
   tree: sheet('tree', 32, 40),
   pine: sheet('pine', 24, 40),
@@ -94,7 +94,6 @@ const SHEETS = {
   windmill: sheet('windmill', 48, 64, 13),
   scarecrow: sheet('scarecrow', 20, 30),
   signpost: sheet('signpost', 16, 22),
-  tractor: sheet('tractor', 34, 26),
   duck: sheet('duck', 12, 10),
   bird: sheet('bird', 10, 7),
   butterfly: sheet('butterfly', 7, 6),
@@ -104,17 +103,25 @@ const SHEETS = {
   campfire: sheet('campfire', 16, 16),
   well: sheet('well', 24, 28),
   outhouse: sheet('outhouse', 18, 30),
-  oldCar: sheet('old-car', 40, 22),
   fairyStone: sheet('fairy-stone', 28, 20),
   fisherman: sheet('fisherman', 32, 28),
 };
 type Sheets = Record<keyof typeof SHEETS, SpriteSheet>;
 
-const TEXTURE_NAMES = ['grass', 'planks', 'logs', 'carpet', 'stone', 'water', 'path', 'soil'] as const;
+/** Плитки: повторяются по полу и стенам. */
+const TILE_TEXTURES = ['grass', 'planks', 'logs', 'carpet', 'stone', 'water'] as const;
+/** Картинки на гранях объёмных моделей (машины, порталы): по одной на грань, без повтора. */
+const MODEL_TEXTURES = [...VEHICLE_TEXTURES, ...PORTAL_TEXTURES] as const;
+type TextureName = (typeof TILE_TEXTURES)[number] | (typeof MODEL_TEXTURES)[number];
 
 async function loadTextures() {
-  const textures = await Promise.all(TEXTURE_NAMES.map((name) => loadTileTexture(textureUrl(name))));
-  return Object.fromEntries(TEXTURE_NAMES.map((name, i) => [name, textures[i]])) as Record<(typeof TEXTURE_NAMES)[number], THREE.Texture>;
+  const [tiles, models] = await Promise.all([
+    Promise.all(TILE_TEXTURES.map((name) => loadTileTexture(textureUrl(name)))),
+    Promise.all(MODEL_TEXTURES.map((name) => loadPixelTexture(textureUrl(name)))),
+  ]);
+  const names = [...TILE_TEXTURES, ...MODEL_TEXTURES];
+  const textures = [...tiles, ...models];
+  return Object.fromEntries(names.map((name, i) => [name, textures[i]])) as Record<TextureName, THREE.Texture>;
 }
 
 /** Сама игра: собирает мир, дорожку, баню и соседей и крутит игровой цикл. */
@@ -243,7 +250,7 @@ export class Game implements GameContext {
     this.hud.setMusic(this.save.music);
 
     this.home = new Home(this, sheets.plate);
-    this.landmarks = new Landmarks(this, sheets);
+    this.landmarks = new Landmarks(this, sheets, textures);
     this.neighborhood = new Neighborhood(this, this.home, {
       bots: [sheets.neighborGreen, sheets.neighborPurple],
       dogs: [sheets.dogBrown, sheets.dogBlack],

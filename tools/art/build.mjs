@@ -5,6 +5,7 @@ import { contactSheet, goldify } from './lib.mjs';
 import * as characters from './characters.mjs';
 import * as scenery from './scenery.mjs';
 import * as textures from './textures.mjs';
+import * as vehicles from './vehicles.mjs';
 
 const root = fileURLToPath(new URL('../../games/steal/src/assets/', import.meta.url));
 
@@ -63,7 +64,6 @@ const outputs = {
   'sprites/campfire.png': scenery.campfire(),
   'sprites/well.png': scenery.well(),
   'sprites/outhouse.png': scenery.outhouse(),
-  'sprites/old-car.png': scenery.oldCar(),
   'sprites/fairy-stone.png': scenery.fairyStone(),
   'sprites/fisherman.png': scenery.fisherman(),
   // постройки и мелочи
@@ -73,12 +73,9 @@ const outputs = {
   'sprites/bell.png': scenery.bell(),
   'sprites/lantern.png': scenery.lantern(),
   'sprites/woodpile.png': scenery.woodpile(),
-  'sprites/arch.png': scenery.arch(),
-  'sprites/portal.png': scenery.portal(),
   'sprites/fence.png': scenery.fence(),
   'sprites/bus-stop.png': scenery.busStop(),
   'sprites/crops.png': scenery.crops(),
-  'sprites/tractor.png': scenery.tractor(),
   'sprites/signpost.png': scenery.signpost(),
   // животные: собаки соседей — рыжий Шарик и чёрный Бобик
   'sprites/duck.png': scenery.duck(),
@@ -93,8 +90,28 @@ const outputs = {
   'textures/carpet.png': textures.carpet(),
   'textures/stone.png': textures.stone(),
   'textures/water.png': scenery.water(),
-  'textures/path.png': scenery.path(),
-  'textures/soil.png': scenery.soil(),
+  // объёмные модели: старая «копейка» (ряд 0 — голубая, ряд 1 — вишнёвая), трактор, портал с воротами
+  'textures/car-body-side.png': vehicles.carBodySide(),
+  'textures/car-body-top.png': vehicles.carBodyTop(),
+  'textures/car-body-end.png': vehicles.carBodyEnd(),
+  'textures/car-cabin-side.png': vehicles.carCabinSide(),
+  'textures/car-cabin-top.png': vehicles.carCabinTop(),
+  'textures/car-cabin-end.png': vehicles.carCabinEnd(),
+  'textures/tire.png': vehicles.tire(),
+  'textures/hub-car.png': vehicles.hubCar(),
+  'textures/tractor-hood-side.png': vehicles.tractorHoodSide(),
+  'textures/tractor-hood-top.png': vehicles.tractorHoodTop(),
+  'textures/tractor-grille.png': vehicles.tractorGrille(),
+  'textures/tractor-cabin-side.png': vehicles.tractorCabinSide(),
+  'textures/tractor-cabin-front.png': vehicles.tractorCabinFront(),
+  'textures/tractor-roof.png': vehicles.tractorRoof(),
+  'textures/tractor-tire.png': vehicles.tractorTire(),
+  'textures/hub-tractor.png': vehicles.hubTractor(),
+  'textures/portal-pad.png': vehicles.portalPad(),
+  'textures/portal-swirl.png': vehicles.portalSwirl(),
+  'textures/gate-post.png': vehicles.gatePost(),
+  'textures/gate-beam.png': vehicles.gateBeam(),
+  'textures/gate-sign.png': vehicles.gateSign(),
 };
 
 for (const [path, img] of Object.entries(outputs)) img.save(root + path);
