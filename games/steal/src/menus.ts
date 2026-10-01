@@ -5,12 +5,15 @@ import { REWARDS, UPGRADES } from './config';
 import type { GameContext } from './context';
 import { CASES, caseById, FREE_CASE_ID } from './data/cases';
 import { CHARACTERS, type CharacterDef } from './data/characters';
+import { HEROES, isHeroId, type HeroId } from './data/heroes';
+import { spriteUrl } from './data/sprites';
 import { RARITIES } from './data/rarity';
 import { sellValue, totalIncome, unitIncome, unitName } from './economy';
 import type { Home, RewardResult } from './home';
 import { characterNearTier, playerPower } from './neighbors';
 import { describeRivals } from './rivals';
 import { CasePanel, type CaseCardView, type CaseResultView, type ReelItem } from './ui/case-panel';
+import { HeroPanel } from './ui/hero-panel';
 import type { MenuId } from './ui/hud';
 import type { Modal } from './ui/modal';
 import { UpgradePanel, type UpgradeRowView } from './ui/upgrade-panel';
@@ -24,19 +27,28 @@ import { coinsPrize, rollWheel, spinState, startBoost, useSpin, WHEEL, WHEEL_CHA
 const REEL_WINNER = 40;
 const REEL_LENGTH = 46;
 
+/** Что окна просят у игры. */
+export interface MenuActions {
+  /** Реклама за награду: true — игрок досмотрел, награду нужно выдать. */
+  showRewardedAd(): Promise<boolean>;
+  /** Сменить героя. */
+  pickHero(id: HeroId): void;
+}
+
 /**
- * Окна поверх игры: прокачка, кейсы, колесо удачи и парилка. Открыто не больше одного.
+ * Окна поверх игры: прокачка, кейсы, колесо удачи, парилка и выбор героя. Открыто не больше одного.
  * Награды выдаются, когда лента или колесо остановились; если окно закрыли раньше
  * или вкладку свернули — сразу (settle), чтобы ничего не пропало.
  */
 export class Menus {
   private readonly ctx: GameContext;
   private readonly home: Home;
-  private readonly showRewardedAd: () => Promise<boolean>;
+  private readonly actions: MenuActions;
   private readonly upgrades: UpgradePanel;
   private readonly cases: CasePanel;
   private readonly wheel: WheelPanel;
   private readonly upgrader: UpgraderPanel;
+  private readonly hero: HeroPanel;
   private readonly modals: Record<MenuId, Modal>;
   private current: MenuId | null = null;
   /** Награда, которую покажет и выдаст остановившаяся анимация. */
@@ -46,10 +58,10 @@ export class Menus {
   private insured = false;
   private adBusy = false;
 
-  constructor(container: HTMLElement, ctx: GameContext, home: Home, showRewardedAd: () => Promise<boolean>) {
+  constructor(container: HTMLElement, ctx: GameContext, home: Home, actions: MenuActions) {
     this.ctx = ctx;
     this.home = home;
-    this.showRewardedAd = showRewardedAd;
+    this.actions = actions;
     const close = () => this.close();
     this.upgrades = new UpgradePanel(container, (id) => this.buyUpgrade(id as UpgradeId), close);
     this.cases = new CasePanel(container, {
@@ -73,7 +85,20 @@ export class Menus {
       onClose: close,
       onDone: () => this.settle(),
     });
-    this.modals = { upgrades: this.upgrades.modal, cases: this.cases.modal, wheel: this.wheel.modal, upgrader: this.upgrader.modal };
+    this.hero = new HeroPanel(
+      container,
+      (id) => {
+        if (isHeroId(id)) actions.pickHero(id);
+      },
+      close,
+    );
+    this.modals = {
+      upgrades: this.upgrades.modal,
+      cases: this.cases.modal,
+      wheel: this.wheel.modal,
+      upgrader: this.upgrader.modal,
+      hero: this.hero.modal,
+    };
   }
 
   /** Какое окно открыто. */
@@ -133,6 +158,11 @@ export class Menus {
         break;
       case 'upgrader':
         this.refreshUpgrader();
+        break;
+      case 'hero':
+        this.hero.render(
+          HEROES.map((hero) => ({ ...hero, sheetUrl: spriteUrl(hero.sprite), selected: hero.id === this.ctx.save.hero })),
+        );
         break;
     }
   }
@@ -247,7 +277,7 @@ export class Menus {
     if (kind === 'ad') {
       if (spinState(save, Date.now()).adLeft === 0) return;
       this.adBusy = true;
-      const rewarded = await this.showRewardedAd();
+      const rewarded = await this.actions.showRewardedAd();
       this.adBusy = false;
       if (!rewarded || !useSpin(save, Date.now(), 'ad')) return;
     } else if (!useSpin(save, Date.now(), 'free')) {
@@ -379,7 +409,7 @@ export class Menus {
   private async insure(): Promise<void> {
     if (this.insured || this.adBusy) return;
     this.adBusy = true;
-    const rewarded = await this.showRewardedAd();
+    const rewarded = await this.actions.showRewardedAd();
     this.adBusy = false;
     if (rewarded) {
       this.insured = true;

@@ -13,6 +13,7 @@ import { Carpet, RARE_THEME } from './carpet';
 import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
 import type { Action, GameContext, TutorialEvent } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
+import { heroById, type HeroId } from './data/heroes';
 import { spriteUrl, textureUrl } from './data/sprites';
 import { baseIncome, totalIncome } from './economy';
 import { Effects } from './effects';
@@ -44,7 +45,7 @@ const MUSIC_SAMPLE_RATE = 32000;
 /** Сколько миллисекунд кадра можно тратить на синтез мелодии. */
 const MUSIC_JOB_BUDGET_MS = 4;
 /** Клавиши окон. */
-const MENU_KEYS: Readonly<Record<string, MenuId>> = { KeyU: 'upgrades', KeyK: 'cases', KeyL: 'wheel', KeyP: 'upgrader' };
+const MENU_KEYS: Readonly<Record<string, MenuId>> = { KeyU: 'upgrades', KeyK: 'cases', KeyL: 'wheel', KeyP: 'upgrader', KeyH: 'hero' };
 /** Как часто из-под ног бегущего героя вылетает облачко пыли, секунды. */
 const DUST_INTERVAL = 0.16;
 
@@ -57,8 +58,9 @@ const sheet = (name: string, frameWidth: number, frameHeight: number, pixelsPerU
 });
 
 const SHEETS = {
-  // герой, соседи и их хозяйство
-  hero: sheet('hero', 16, 16, 12),
+  // герои на выбор (кадр 24×24 при 18 px на единицу — ростом с прежнего героя), соседи и их хозяйство
+  heroGirl: sheet('hero-girl', 24, 24, 18),
+  heroGuy: sheet('hero-guy', 24, 24, 18),
   neighborGreen: sheet('neighbor-green', 16, 16, 12),
   neighborPurple: sheet('neighbor-purple', 16, 16, 12),
   dogBrown: sheet('dog-brown', 20, 16),
@@ -143,6 +145,7 @@ export class Game implements GameContext {
   private readonly cameraRig = new FollowCamera(CAMERA);
   private readonly input: Input;
   private readonly characterSheets: ReadonlyMap<string, SpriteSheet>;
+  private readonly heroSheets: Readonly<Record<HeroId, SpriteSheet>>;
   private readonly sparkleSheet: SpriteSheet;
   private readonly home: Home;
   private readonly carpet: Carpet;
@@ -206,6 +209,7 @@ export class Game implements GameContext {
     this.container = container;
     this.platform = platform;
     this.characterSheets = characterSheets;
+    this.heroSheets = { girl: sheets.heroGirl, guy: sheets.heroGuy };
     this.sparkleSheet = sheets.sparkle;
     this.audio = audio;
     this.save = save;
@@ -223,7 +227,7 @@ export class Game implements GameContext {
 
     this.world = buildWorld(this.scene, textures, sheets);
     this.labels = new LabelLayer(container);
-    this.player = new Player(sheets.hero);
+    this.player = new Player(this.heroSheets[save.hero]);
     this.player.position.set(PLAYER.start.x, 0, PLAYER.start.z);
     this.scene.add(this.player.root);
     this.cameraRig.jumpTo(this.player.position);
@@ -248,6 +252,7 @@ export class Game implements GameContext {
     this.audio.setMuted(this.save.muted);
     this.hud.setMuted(this.save.muted);
     this.hud.setMusic(this.save.music);
+    this.hud.setHero(spriteUrl(heroById(this.save.hero).sprite));
 
     this.home = new Home(this, sheets.plate);
     this.landmarks = new Landmarks(this, sheets, textures);
@@ -260,7 +265,10 @@ export class Game implements GameContext {
     this.carpet = new Carpet(this, this.home, new Spawner(this.rng, CHARACTERS, CARPET.spawnInterval));
     this.carpet.prefill();
     this.broom = new Broom(this, sheets.broom);
-    this.menus = new Menus(container, this, this.home, () => this.showRewardedAd());
+    this.menus = new Menus(container, this, this.home, {
+      showRewardedAd: () => this.showRewardedAd(),
+      pickHero: (id) => this.pickHero(id),
+    });
 
     platform.onPause(() => this.setPausedByPlatform(true));
     platform.onResume(() => this.setPausedByPlatform(false));
@@ -370,6 +378,19 @@ export class Game implements GameContext {
         : { title: 'Шлёпнуть веником', detail: 'веник перезаряжается…', enabled: false },
       run: () => this.attack(),
     };
+  }
+
+  // ---------------------------------------------------------------- герой
+
+  /** Смена героя: новый лист сразу, блёстки и сохранение. */
+  private pickHero(id: HeroId): void {
+    if (this.save.hero === id) return;
+    this.save.hero = id;
+    this.player.setSheet(this.heroSheets[id]);
+    this.hud.setHero(spriteUrl(heroById(id).sprite));
+    this.fx.sparkles(this.player.position);
+    this.audio.blip('unlock');
+    this.markDirty(true);
   }
 
   // ---------------------------------------------------------------- реклама

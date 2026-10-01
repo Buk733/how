@@ -371,6 +371,264 @@ export function neighbor(colors = {}) {
   return s.img;
 }
 
+// ---------- Герои игрока: аниме-девушка и качок. 4 направления × 4 кадра ходьбы, кадр 24×24 ----------
+const HERO_SIZE = 24;
+
+/** Трафарет шириной в кадр героя. Пробелы — только для удобства счёта пикселей, они выбрасываются. */
+function stencil(rows) {
+  return rows.map((row) => {
+    const clean = row.replaceAll(' ', '');
+    if (clean.length !== HERO_SIZE) throw new Error(`Строка трафарета героя не ${HERO_SIZE} пикселя: "${row}"`);
+    return clean;
+  });
+}
+
+/**
+ * Лист героя. Ряды — как у движка: лицом к камере, влево, вправо (зеркало «влево»), спиной.
+ * В ряду 4 кадра ходьбы: стоит, шаг, стоит, шаг другой ногой. Во 2-м и 4-м кадрах тело
+ * опускается на пиксель — шаг пружинит. look: трафареты тела (front, side, back), ног по кадрам
+ * (legs — анфас, sideLegs — профиль, с высоты legsY), руки в профиль по кадрам (sideArms) и палитра.
+ */
+function heroSheet(look) {
+  const s = sheet(HERO_SIZE, HERO_SIZE, 4, 4);
+  const { legs, sideLegs } = look;
+  const sideView = {
+    body: look.side,
+    legs: [sideLegs.stand, sideLegs.strideA, sideLegs.stand, sideLegs.strideB],
+    arms: look.sideArms,
+  };
+  const views = [
+    { body: look.front, legs: [legs.stand, legs.liftL, legs.stand, legs.liftR] },
+    sideView,
+    { ...sideView, mirror: true },
+    { body: look.back, legs: [legs.stand, legs.liftR, legs.stand, legs.liftL] },
+  ];
+  views.forEach((view, row) => {
+    for (let col = 0; col < 4; col++) {
+      const f = s.frame(col, row);
+      const bob = col % 2;
+      f.grid(0, look.legsY, stencil(view.legs[col]), look.pal);
+      f.grid(0, bob, stencil(view.body), look.pal);
+      if (view.arms) f.grid(0, bob, stencil(view.arms[col]), look.pal);
+      if (view.mirror) f.mirror();
+      f.outline();
+    }
+  });
+  return s.img;
+}
+
+/** Аниме-девушка: длинные тёмные волосы с красным бантом, большие глаза, красный топ, тёмная юбка. */
+export function heroGirl() {
+  const pal = {
+    h: '#2f3a66', H: '#222a4d', l: '#5470c0', b: '#e43b44',
+    s: C.skin, S: C.skinShade, c: '#f29aa3', m: '#c2455a',
+    k: C.ink, w: C.white, e: C.sky,
+    r: '#c43c55', R: '#8f2a45', q: '#ec6f86',
+    n: C.black, N: C.ink, o: C.white,
+  };
+  const front = [
+    '.... .... .... .... .... ....',
+    '.... .... hhhh hhhh .b.b ....',
+    '.... ..hh hhhh hhhh hbbb ....',
+    '.... .hhh llhh hhhh hhb. ....',
+    '.... hhhl hhhh hhhh hhhH ....',
+    '.... hhhh hhhh hhhh hhhH ....',
+    '.... hhhs hhhs shhh shhH ....',
+    '.... hhss kkss sskk sshH ....',
+    '.... hhss wess sswe sshH ....',
+    '.... hhss eess ssee sshH ....',
+    '.... hhsc ssss ssss cshH ....',
+    '.... hhhS sssm msss ShhH ....',
+    '.... hhhh Ssss sssS hhhH ....',
+    '.... hhhh ...s s... hhhH ....',
+    '.... hhhr rrws swrr rhhH ....',
+    '.... .hrr rqrw wrqr rrH. ....',
+    '.... .hsr RRrr rrRR rsH. ....',
+    '.... .hs. rrrr rrrr .sH. ....',
+    '.... ..sn nnnn nnnn ns.. ....',
+    '.... ..nn Nnnn nnnN nn.. ....',
+  ];
+  const back = [
+    '.... .... .... .... .... ....',
+    '.... b.b. hhhh hhhh .... ....',
+    '.... bbbh hhhh hhhh hh.. ....',
+    '.... .bhh hhhh hhll hhh. ....',
+    '.... hhhh hhhh hhhl lhhH ....',
+    '.... hhhh hhhh hhhh hhhH ....',
+    '.... hhhh hhhh hhhh hhhH ....',
+    '.... hhhh hhhh hhhh hhhH ....',
+    '.... hhhh hhhh hhhh hhhH ....',
+    '.... hhhh hhhh hhhh hhhH ....',
+    '.... hhhh hhHh hhhh hhhH ....',
+    '.... Hhhh hhHh hhhH hhHH ....',
+    '.... .hhH hhHh hhhH hhH. ....',
+    '.... ..hH hhHh hhhH hH.. ....',
+    '.... ..rh hhHh hhhH hr.. ....',
+    '.... ..rr hhHh hhhH rr.. ....',
+    '.... ..sr hhHh hhhH rs.. ....',
+    '.... ..s. rhhh hhhr .s.. ....',
+    '.... ..sn nnhh hhnn ns.. ....',
+    '.... ..nn Nnnn nnnN nn.. ....',
+  ];
+  // профиль смотрит влево: лицо слева, волосы спадают по спине
+  const side = [
+    '.... .... .... .... .... ....',
+    '.... .... .hhh hhh. .... ....',
+    '.... .... hhhh hhhh b.b. ....',
+    '.... ...h hhll hhhh bbb. ....',
+    '.... ..hh hhhh hhhh hbh. ....',
+    '.... .hhh hhhh hhhh hhh. ....',
+    '.... hhhs sssh hhhh hhhH ....',
+    '.... hskk sssh hhhh hhhH ....',
+    '.... .sew sssh hhhh hhhH ....',
+    '.... ssee sssh hhhh hhhH ....',
+    '.... .scs sssh hhhh hhhH ....',
+    '.... .mss ssSh hhhh hhH. ....',
+    '.... ..sS SShh hhhh hhH. ....',
+    '.... .... .ssh hhhh hH.. ....',
+    '.... .... rrrr hhhh hH.. ....',
+    '.... ...q rrrr rhhh H... ....',
+    '.... ...R rrrr rhhH .... ....',
+    '.... .... rrrr rhH. .... ....',
+    '.... ...n nnnn nn.. .... ....',
+    '.... ..nn nnnn nnN. .... ....',
+  ];
+  const blank = '.... .... .... .... .... ....';
+  // рука в профиль: вниз, вперёд, вниз, назад (трафарет поверх тела, строки 14–17)
+  const arm = (...rows) => [...Array(14).fill(blank), ...rows];
+  const armDown = arm('.... .... ..R. .... .... ....', '.... .... ..R. .... .... ....', '.... .... ..s. .... .... ....', '.... .... ..s. .... .... ....');
+  const armForward = arm('.... .... ..R. .... .... ....', '.... .... .R.. .... .... ....', '.... .... s... .... .... ....', '.... ...s .... .... .... ....');
+  const armBack = arm('.... .... ..R. .... .... ....', '.... .... ...R .... .... ....', '.... .... .... s... .... ....', '.... .... .... .s.. .... ....');
+  return heroSheet({
+    pal,
+    front,
+    back,
+    side,
+    sideArms: [armDown, armForward, armDown, armBack],
+    legsY: 20,
+    legs: {
+      stand: ['.... .... .ss. .ss. .... ....', '.... .... .ss. .ss. .... ....', '.... .... ooo. .ooo .... ....'],
+      liftL: ['.... .... .ss. .ss. .... ....', '.... .... ooo. .ss. .... ....', '.... .... .... .ooo .... ....'],
+      liftR: ['.... .... .ss. .ss. .... ....', '.... .... .ss. .ooo .... ....', '.... .... ooo. .... .... ....'],
+    },
+    sideLegs: {
+      stand: ['.... .... .ss. .... .... ....', '.... .... .ss. .... .... ....', '.... .... ooo. .... .... ....'],
+      strideA: ['.... .... ss.s s... .... ....', '.... ...s s... ss.. .... ....', '.... ..oo o... .oo. .... ....'],
+      strideB: ['.... .... ss.s s... .... ....', '.... ...s s... .oo. .... ....', '.... ..oo o... .... .... ....'],
+    },
+  });
+}
+
+/** Качок: короткая стрижка, квадратная челюсть, широкие плечи и руки, красная майка, джинсы. */
+export function heroGuy() {
+  const pal = {
+    h: '#2b2733', l: '#4a4456',
+    s: '#e2b48a', S: '#b9875f', t: '#f3cfa4',
+    d: C.bark, k: C.ink, m: '#8c4a42',
+    r: '#c43c55', R: '#8f2a45',
+    p: '#3b5dc9', P: C.navy, o: C.white,
+  };
+  const front = [
+    '.... .... .... .... .... ....',
+    '.... .... .hhh hhh. .... ....',
+    '.... .... hhhl lhhh .... ....',
+    '.... ...h hhhh hhhh h... ....',
+    '.... ...h hhhh hhhh h... ....',
+    '.... ...h ssss ssss h... ....',
+    '.... ...s kkkS Skkk s... ....',
+    '.... ..Ss sksS Ssks sS.. ....',
+    '.... ...s sssS Ssss s... ....',
+    '.... ...S ssmm mmss S... ....',
+    '.... ...S Ssss sssS S... ....',
+    '.... .... SSss ssSS .... ....',
+    '.... ..ss sSss ssSs ss.. ....',
+    '.... Ssss rrss ssrr sssS ....',
+    '...S sssr rrrR Rrrr rsss S...',
+    '...S tssr RRRr rRRR rsst S...',
+    '...S sssr rrrr rrrr rsss S...',
+    '...s sS.. rrrr rrrr ..Ss s...',
+    '...s ss.. pppp pppp ..ss s...',
+    '.... SS.. pppp pppp ..SS ....',
+  ];
+  const back = [
+    '.... .... .... .... .... ....',
+    '.... .... .hhh hhh. .... ....',
+    '.... .... hhhh hhhh .... ....',
+    '.... ...h hhhl hhhh h... ....',
+    '.... ...h hhhh hhhh h... ....',
+    '.... ...h hhhh hhhh h... ....',
+    '.... ...h hhhh hhhh h... ....',
+    '.... ..Sh hhhh hhhh hS.. ....',
+    '.... ...s hhhh hhhh s... ....',
+    '.... ...s shhh hhhs s... ....',
+    '.... ...S ssss ssss S... ....',
+    '.... .... SSss ssSS .... ....',
+    '.... ..ss sSss ssSs ss.. ....',
+    '.... Ssss rrrr rrrr sssS ....',
+    '...S sssr rrrr rrrr rsss S...',
+    '...S tssr rRrr rrRr rsst S...',
+    '...S sssr rrrr rrrr rsss S...',
+    '...s sS.. rrrr rrrr ..Ss s...',
+    '...s ss.. pppp pppp ..ss s...',
+    '.... SS.. pppp pppp ..SS ....',
+  ];
+  // профиль смотрит влево: чёлка и челюсть вперёд, грудь колесом
+  const side = [
+    '.... .... .... .... .... ....',
+    '.... .... hhhh .... .... ....',
+    '.... ...h hhll hhh. .... ....',
+    '.... ...h hhhh hhhh h... ....',
+    '.... ...h hhhh hhhh h... ....',
+    '.... ...s ssss sshh h... ....',
+    '.... ..sk kkss sSll l... ....',
+    '.... ..ss kssS Ssll .... ....',
+    '.... .sss sssS sss. .... ....',
+    '.... ..ss ssss sS.. .... ....',
+    '.... ..mS ssss sS.. .... ....',
+    '.... ..SS ssss sS.. .... ....',
+    '.... ...S SSSS SSs. .... ....',
+    '.... .... .sss sss. .... ....',
+    '.... ...r rrrr rrrr s... ....',
+    '.... ..rr rrrr rrrr .... ....',
+    '.... ...R rrrr rrrr .... ....',
+    '.... .... rrrr rrrr .... ....',
+    '.... .... rrrr rrr. .... ....',
+    '.... .... pppp ppp. .... ....',
+  ];
+  const blank = '.... .... .... .... .... ....';
+  // рука в профиль (поверх тела, строки 14–20): плечо и бицепс с тёмным контуром спереди,
+  // чтобы не сливались с грудью; предплечье качается
+  const arm = (...lower) => [
+    ...Array(14).fill(blank),
+    '.... .... ...s sS.. .... ....',
+    '.... .... ..dt ssS. .... ....',
+    '.... .... ..ds ssS. .... ....',
+    '.... .... ...d sS.. .... ....',
+    ...lower,
+  ];
+  const armDown = arm('.... .... .... sS.. .... ....', '.... .... .... sS.. .... ....', '.... .... .... SS.. .... ....');
+  const armForward = arm('.... .... ...s S... .... ....', '.... .... ..sS .... .... ....', '.... .... .SS. .... .... ....');
+  const armBack = arm('.... .... .... .sS. .... ....', '.... .... .... ..sS .... ....', '.... .... .... ...S S... ....');
+  return heroSheet({
+    pal,
+    front,
+    back,
+    side,
+    sideArms: [armDown, armForward, armDown, armBack],
+    legsY: 20,
+    legs: {
+      stand: ['.... .... ppp. .ppp .... ....', '.... .... ppp. .ppp .... ....', '.... ...o ooo. .ooo o... ....'],
+      liftL: ['.... .... ppp. .ppp .... ....', '.... ...o ooo. .ppp .... ....', '.... .... .... .ooo o... ....'],
+      liftR: ['.... .... ppp. .ppp .... ....', '.... .... ppp. .ooo o... ....', '.... ...o ooo. .... .... ....'],
+    },
+    sideLegs: {
+      stand: ['.... .... pppp .... .... ....', '.... .... pppp .... .... ....', '.... ...o oooo .... .... ....'],
+      strideA: ['.... ...p pp.p pp.. .... ....', '.... ..pp p... ppp. .... ....', '.... .ooo o... .ooo .... ....'],
+      strideB: ['.... ...p pp.p pp.. .... ....', '.... ..pp p... .ooo .... ....', '.... .ooo o... .... .... ....'],
+    },
+  });
+}
+
 // ---------- Коч Братан: парень из казахской бани — войлочная шапка, полотенце, веник ----------
 export function kochBratan() {
   return twoFrames((f, i) => {

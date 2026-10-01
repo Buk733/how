@@ -55,14 +55,19 @@ export const BEAR_TUNE: SongDef = {
   ],
 };
 
+/**
+ * Голоса мягкие (v0.6): мелодия — «флейта» с плавной атакой и тающим хвостом, аккорды без щелчка,
+ * бочка и шорох тише, поверх — лёгкое эхо на восьмую с точкой. Квадратных «пищащих» голосов нет.
+ */
 export const BANYA_POLKA: SongDef = {
   bpm: 112,
   stepsPerBeat: 2,
+  echo: { delay: (60 / 112) * 0.75, feedback: 0.3, mix: 0.25 },
   tracks: [
-    { wave: 'pulse', duty: 0.25, volume: 0.16, decay: 1.2, vibrato: 0.004, notes: LEAD },
-    { wave: 'triangle', volume: 0.3, decay: 2.5, notes: bars((chord) => BASS[chord]) },
-    { wave: 'pulse', duty: 0.125, volume: 0.05, decay: 14, notes: bars((chord) => `r:2 ${STAB[chord]} r:3 ${STAB[chord]} r`) },
-    { wave: 'kick', volume: 0.3, decay: 16, notes: bars(() => 'x r:3 x r:3') },
-    { wave: 'noise', volume: 0.035, decay: 45, notes: bars(() => 'r:2 x r:3 x r') },
+    { wave: 'sine', volume: 0.22, attack: 0.05, release: 0.22, decay: 0.8, vibrato: 0.005, notes: LEAD },
+    { wave: 'triangle', volume: 0.28, attack: 0.01, release: 0.12, decay: 2.5, notes: bars((chord) => BASS[chord]) },
+    { wave: 'sine', volume: 0.06, attack: 0.02, release: 0.16, decay: 8, notes: bars((chord) => `r:2 ${STAB[chord]} r:3 ${STAB[chord]} r`) },
+    { wave: 'kick', volume: 0.22, decay: 16, notes: bars(() => 'x r:3 x r:3') },
+    { wave: 'noise', volume: 0.02, attack: 0.003, decay: 45, notes: bars(() => 'r:2 x r:3 x r') },
   ],
 };

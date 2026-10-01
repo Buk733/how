@@ -21,6 +21,13 @@ export class Player extends Actor {
     this.sprite.enableSilhouette(); // виден, даже когда зашёл за стену бани
   }
 
+  /** Другой герой: новый лист, тот же кадр и направление, силуэт за стенами тоже виден. */
+  override setSheet(sheet: SpriteSheet): void {
+    super.setSheet(sheet);
+    this.sprite.enableSilhouette();
+    this.sprite.setFrame(this.animator.frame, this.facingValue);
+  }
+
   /** «Нокаут»: несколько секунд игрок не может двигаться. */
   stun(seconds: number): void {
     this.stunned = Math.max(this.stunned, seconds);

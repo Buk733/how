@@ -1,8 +1,9 @@
 import { formatNumber } from '@engine/format';
 import { button, element, formatWait } from './dom';
+import { heroIcon } from './hero-panel';
 
-/** Окна, которые открываются кнопками слева. */
-export type MenuId = 'upgrades' | 'cases' | 'wheel' | 'upgrader';
+/** Окна: кнопками слева и круглой кнопкой героя справа. */
+export type MenuId = 'upgrades' | 'cases' | 'wheel' | 'upgrader' | 'hero';
 
 export interface HudCallbacks {
   onAction(): void;
@@ -19,7 +20,7 @@ export interface ActionView {
   readonly enabled: boolean;
 }
 
-/** Кнопки окон: значок, подпись и клавиша. */
+/** Кнопки окон слева: значок, подпись и клавиша. */
 const MENUS: readonly { readonly id: MenuId; readonly icon: string; readonly text: string; readonly key: string }[] = [
   { id: 'upgrades', icon: '⚡', text: 'Прокачка', key: 'U' },
   { id: 'cases', icon: '🎁', text: 'Кейсы', key: 'K' },
@@ -43,6 +44,7 @@ export class Hud {
   private readonly broom: HTMLButtonElement;
   private readonly mute: HTMLButtonElement;
   private readonly music: HTMLButtonElement;
+  private readonly hero: HTMLButtonElement;
   private readonly banner: HTMLDivElement;
   private bannerTimer = 0;
   private lastCoins = -1;
@@ -81,6 +83,8 @@ export class Hud {
 
     this.mute = button('hud-round hud-mute', '', () => callbacks.onToggleMute());
     this.music = button('hud-round hud-music', '🎵', () => callbacks.onToggleMusic());
+    this.hero = button('hud-round hud-hero', '', () => callbacks.onMenu('hero'));
+    this.hero.title = 'Герой';
 
     this.broom = button('hud-broom', '🧹', () => callbacks.onAttack(), true);
     this.broom.title = 'Шлёпнуть веником';
@@ -93,7 +97,7 @@ export class Hud {
     this.action.hidden = true;
 
     this.banner = element('div', 'hud-banner');
-    this.root.append(left, this.mute, this.music, this.broom, this.action, this.banner);
+    this.root.append(left, this.mute, this.music, this.hero, this.broom, this.action, this.banner);
     container.append(this.root);
   }
 
@@ -147,6 +151,11 @@ export class Hud {
   setMuted(muted: boolean): void {
     this.mute.textContent = muted ? '🔇' : '🔊';
     this.mute.title = muted ? 'Включить звук' : 'Выключить звук';
+  }
+
+  /** Портрет героя на круглой кнопке. */
+  setHero(sheetUrl: string): void {
+    this.hero.replaceChildren(heroIcon(sheetUrl, 40), element('kbd', 'hud-key', 'H'));
   }
 
   setMusic(on: boolean): void {

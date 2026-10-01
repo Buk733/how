@@ -37,7 +37,8 @@ const KNOCK_DECAY = 12;
 /** Всё, что ходит по миру: спрайт-билборд и круглая тень под ним. */
 export class Actor {
   readonly root = new THREE.Group();
-  readonly sprite: BillboardSprite;
+  /** Картинка; целиком меняется через setSheet. */
+  sprite: BillboardSprite;
   protected readonly shadow: THREE.Mesh;
   private knockX = 0;
   private knockZ = 0;
@@ -50,6 +51,15 @@ export class Actor {
 
   get position(): THREE.Vector3 {
     return this.root.position;
+  }
+
+  /** Меняет картинку на другой лист (например, игрок выбрал другого героя). */
+  setSheet(sheet: SpriteSheet): void {
+    const old = this.sprite;
+    this.sprite = new BillboardSprite(sheet);
+    this.root.remove(old.object);
+    this.root.add(this.sprite.object);
+    old.dispose();
   }
 
   /** Отбрасывает в сторону (dirX, dirZ) примерно на distance единиц — от удара веником. */

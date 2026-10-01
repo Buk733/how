@@ -1,5 +1,6 @@
 import { BOT, ECONOMY, NEIGHBORS } from './config';
 import { CASES } from './data/cases';
+import { DEFAULT_HERO, isHeroId, type HeroId } from './data/heroes';
 import { SECRET_IDS } from './data/secrets';
 import { createUpgradeLevels, maxLevel, UPGRADE_IDS, type UpgradeLevels } from './upgrades';
 
@@ -24,7 +25,9 @@ export interface NeighborSave {
 
 /** Всё, что сохраняется между сессиями. При изменении формата — поднять version и дописать миграцию. */
 export interface SaveData {
-  version: 5;
+  version: 6;
+  /** Кем игрок бегает по миру. */
+  hero: HeroId;
   coins: number;
   /** Сколько мест на полке открыто. */
   unlocked: number;
@@ -66,7 +69,8 @@ export function emptySlot(): SlotSave {
 
 export function createSave(): SaveData {
   return {
-    version: 5,
+    version: 6,
+    hero: DEFAULT_HERO,
     coins: ECONOMY.startCoins,
     unlocked: ECONOMY.freeSlots,
     slots: Array.from({ length: ECONOMY.totalSlots }, emptySlot),
@@ -104,13 +108,14 @@ function parseUnit(value: unknown, knownIds: ReadonlySet<string>): UnitSave | nu
  * Проверяет сохранение, пришедшее из хранилища. Всё сломанное или незнакомое
  * заменяется значениями по умолчанию, неизвестные персонажи убираются.
  * Понимает сохранения версий 1 (до соседей), 2 (до прокачки), 3 (до «Голды» и кейсов),
- * 4 (до пасхалок и прокачки соседей) и 5.
+ * 4 (до пасхалок и прокачки соседей), 5 (до выбора героя) и 6.
  */
 export function parseSave(raw: unknown, knownIds: ReadonlySet<string>): SaveData {
   const save = createSave();
   const data = record(raw);
-  if (!data || ![1, 2, 3, 4, 5].includes(data.version as number)) return save;
+  if (!data || ![1, 2, 3, 4, 5, 6].includes(data.version as number)) return save;
 
+  if (isHeroId(data.hero)) save.hero = data.hero;
   save.coins = nonNegative(data.coins, save.coins);
   save.unlocked = Math.min(ECONOMY.totalSlots, Math.max(ECONOMY.freeSlots, Math.floor(nonNegative(data.unlocked, 0))));
   save.tutorial = Math.min(TUTORIAL_DONE, Math.floor(nonNegative(data.tutorial, 0)));

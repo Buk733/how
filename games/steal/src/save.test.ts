@@ -24,6 +24,7 @@ describe('parseSave', () => {
     save.adSpins = { day: '2026-09-29', count: 2 };
     save.boostUntil = 333;
     save.secrets = ['hut', 'well'];
+    save.hero = 'guy';
     save.music = false;
     save.tutorial = 3;
     save.stats = { bought: 2, earned: 100, stolen: 1, lost: 0, opened: 5, upgraded: 1, peakIncome: 640 };
@@ -33,7 +34,7 @@ describe('parseSave', () => {
   it('читает сохранение версии 1: соседей, прокачки и «Голды» ещё нет', () => {
     const v1 = { version: 1, coins: 300, unlocked: 4, slots: [{ id: 'kotost', stored: 3 }], tutorial: 2, muted: true, stats: { bought: 5, earned: 40 }, savedAt: 1 };
     const save = parseSave(v1, known);
-    expect(save.version).toBe(5);
+    expect(save.version).toBe(6);
     expect(save.coins).toBe(300);
     expect(save.slots[0]).toEqual({ id: 'kotost', gold: false, stored: 3 });
     expect(save.neighbors).toEqual([]);
@@ -46,7 +47,7 @@ describe('parseSave', () => {
   it('читает сохранение версии 3: у соседей были просто id, кейсов и таймеров ещё нет', () => {
     const neighbors = NEIGHBORS.map(() => ({ slots: ['panther', null, 'удалённый'] }));
     const save = parseSave({ version: 3, coins: 10, unlocked: 5, slots: [], neighbors, upgrades: { speed: 1 }, tutorial: 3 }, known);
-    expect(save.version).toBe(5);
+    expect(save.version).toBe(6);
     expect(save.neighbors[0].slots.slice(0, 3)).toEqual([{ id: 'panther', gold: false }, null, null]);
     expect(save.upgrades.speed).toBe(1);
     expect(save.keys).toEqual({});
@@ -56,10 +57,22 @@ describe('parseSave', () => {
 
   it('читает сохранение версии 4: пасхалок и лучшего дохода ещё нет', () => {
     const save = parseSave({ version: 4, coins: 10, slots: [], stats: { bought: 1 }, keys: { bath: 1 } }, known);
-    expect(save.version).toBe(5);
+    expect(save.version).toBe(6);
     expect(save.secrets).toEqual([]);
     expect(save.stats.peakIncome).toBe(0);
     expect(save.keys).toEqual({ bath: 1 });
+  });
+
+  it('читает сохранение версии 5: героя ещё не выбирали — начинает аниме-девушка', () => {
+    const save = parseSave({ version: 5, coins: 10, slots: [], secrets: ['hut'] }, known);
+    expect(save.version).toBe(6);
+    expect(save.hero).toBe('girl');
+    expect(save.secrets).toEqual(['hut']);
+  });
+
+  it('незнакомый герой заменяется героем по умолчанию', () => {
+    expect(parseSave({ version: 6, hero: 'дракон' }, known).hero).toBe('girl');
+    expect(parseSave({ version: 6, hero: 'guy' }, known).hero).toBe('guy');
   });
 
   it('чинит сломанные значения и выкидывает неизвестное', () => {
