@@ -84,8 +84,11 @@ describe('кейсы', () => {
     };
     const ids = CASES.map((c) => c.id);
     for (let i = 1; i < ids.length; i++) expect(value(ids[i])).toBeGreaterThan(value(ids[i - 1]));
-    // и не дают больше, чем стоят: кейс — развлечение, а не способ заработать
-    for (const c of CASES) expect(value(c.id)).toBeLessThan(c.price * 1.05);
+    // и дают меньше, чем стоят (кейс — развлечение, а не способ заработать), но не намного — иначе их не открывают
+    for (const c of CASES) {
+      expect(value(c.id) / c.price).toBeGreaterThan(0.7);
+      expect(value(c.id) / c.price).toBeLessThan(0.85);
+    }
   });
 });
 

@@ -40,17 +40,17 @@ type Entry = Omit<CharacterDef, 'sprite' | 'goldSprite'>;
  */
 const ENTRIES: readonly Entry[] = [
   { id: 'panther', name: 'Танцуй Пантера', rarity: 'common', price: 25, income: 1, sound: { url: pantherSound } },
-  { id: 'anime-cook', name: 'Тянка в фартуке', rarity: 'common', price: 50, income: 2 },
-  { id: 'anime-knight', name: 'Аниме-рыцарь', rarity: 'common', price: 100, income: 4 },
-  { id: 'kotost', name: 'Котость', rarity: 'rare', price: 400, income: 10, sound: { url: kotostSound, offset: 3.2, duration: 3 } },
-  { id: 'diver', name: 'Нюхай Быстрее', rarity: 'rare', price: 750, income: 17, sound: { url: diverSound } },
-  { id: 'baba-chai', name: 'Баба Чай', rarity: 'epic', price: 4000, income: 70, sound: { url: babaChaiSound, offset: 0.9, duration: 1.8 } },
-  { id: 'koch-bratan', name: 'Коч Братан', rarity: 'epic', price: 7500, income: 120 },
-  { id: 'hamam', name: 'Хамам', rarity: 'legendary', price: 50000, income: 600 },
-  { id: 'dark-drun', name: 'Тёмный Друн', rarity: 'legendary', price: 90000, income: 1000 },
-  { id: 'schoolboy', name: 'Школьник второй смены', rarity: 'legendary', price: 150000, income: 1600 },
-  { id: 'fat-mellstroy', name: 'Толстый Меллстрой', rarity: 'mythic', price: 500000, income: 5000 },
-  { id: 'indian-mellstroy', name: 'Индеец Меллстрой', rarity: 'mythic', price: 900000, income: 8500 },
+  { id: 'anime-cook', name: 'Тянка в фартуке', rarity: 'common', price: 60, income: 2 },
+  { id: 'anime-knight', name: 'Аниме-рыцарь', rarity: 'common', price: 140, income: 4 },
+  { id: 'kotost', name: 'Котость', rarity: 'rare', price: 600, income: 10, sound: { url: kotostSound, offset: 3.2, duration: 3 } },
+  { id: 'diver', name: 'Нюхай Быстрее', rarity: 'rare', price: 1100, income: 17, sound: { url: diverSound } },
+  { id: 'baba-chai', name: 'Баба Чай', rarity: 'epic', price: 8000, income: 70, sound: { url: babaChaiSound, offset: 0.9, duration: 1.8 } },
+  { id: 'koch-bratan', name: 'Коч Братан', rarity: 'epic', price: 15000, income: 120 },
+  { id: 'hamam', name: 'Хамам', rarity: 'legendary', price: 100000, income: 600 },
+  { id: 'dark-drun', name: 'Тёмный Друн', rarity: 'legendary', price: 180000, income: 1000 },
+  { id: 'schoolboy', name: 'Школьник второй смены', rarity: 'legendary', price: 300000, income: 1600 },
+  { id: 'fat-mellstroy', name: 'Толстый Меллстрой', rarity: 'mythic', price: 1250000, income: 5000 },
+  { id: 'indian-mellstroy', name: 'Индеец Меллстрой', rarity: 'mythic', price: 2300000, income: 8500 },
 ];
 
 export const CHARACTERS: readonly CharacterDef[] = ENTRIES.map((entry) => ({

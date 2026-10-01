@@ -19,14 +19,14 @@ describe('checkPurchase', () => {
 
   it('садит на первое свободное место', () => {
     const save = createSave();
-    save.coins = 1000;
+    save.coins = def('kotost').price;
     save.slots[0].id = 'panther';
     expect(checkPurchase(save, def('kotost'))).toEqual({ ok: true, slot: 1, replaces: null });
   });
 
   it('когда мест нет — заменяет самого слабого, если новый доходнее', () => {
     const save = createSave();
-    save.coins = 1000;
+    save.coins = def('diver').price;
     ['kotost', 'panther', 'anime-knight', 'anime-cook'].forEach((id, i) => (save.slots[i].id = id));
     const check = checkPurchase(save, def('diver'));
     expect(check).toEqual({ ok: true, slot: 1, replaces: { def: def('panther'), gold: false } });

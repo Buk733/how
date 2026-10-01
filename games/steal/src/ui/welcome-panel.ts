@@ -6,7 +6,7 @@ export interface WelcomeView {
   /** «2 ч 15 мин» — сколько игрока не было. */
   readonly away: string;
   readonly coins: number;
-  /** Пояснение мелким шрифтом: вполсилы, не дольше N часов. */
+  /** Пояснение мелким шрифтом: какая доля дохода и не дольше скольких часов. */
   readonly note: string;
 }
 

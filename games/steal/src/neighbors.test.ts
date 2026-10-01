@@ -11,11 +11,21 @@ const def = (id: string) => {
 };
 
 describe('соседи', () => {
-  it('сила игрока — самая высокая редкость на его полке', () => {
+  it('сила игрока — редкость его третьего по редкости персонажа: один везунчик соседей не поднимает', () => {
     const save = createSave();
     expect(playerPower(save.slots)).toBe(-1);
     save.slots[0].id = 'panther';
+    expect(playerPower(save.slots)).toBe(tierOf('common'));
+    // двое — считается слабый из них
     save.slots[1].id = 'baba-chai';
+    expect(playerPower(save.slots)).toBe(tierOf('common'));
+    save.slots[2].id = 'kotost';
+    save.slots[3].id = 'diver';
+    expect(playerPower(save.slots)).toBe(tierOf('rare'));
+    // легендарный из кейса — а соседи всё ещё на редких
+    save.slots[4].id = 'hamam';
+    expect(playerPower(save.slots)).toBe(tierOf('rare'));
+    save.slots[5].id = 'koch-bratan';
     expect(playerPower(save.slots)).toBe(tierOf('epic'));
   });
 

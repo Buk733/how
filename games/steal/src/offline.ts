@@ -1,9 +1,7 @@
 // Доход вне игры без графики: сколько персонажи «напарили», пока игрока не было.
 import { OFFLINE } from './config';
-import { baseIncome } from './economy';
-import { rebirthMultiplier } from './rebirth';
+import { steadyIncome } from './economy';
 import type { SaveData } from './save';
-import { incomeMultiplier } from './upgrades';
 
 export interface OfflineEarnings {
   /** Сколько секунд игрока не было на самом деле. */
@@ -23,7 +21,6 @@ export function offlineEarnings(save: SaveData, now: number): OfflineEarnings | 
   const away = (now - save.savedAt) / 1000;
   if (away < OFFLINE.minMinutes * 60) return null;
   const seconds = Math.min(away, OFFLINE.maxHours * 3600);
-  const income = baseIncome(save) * incomeMultiplier(save.upgrades) * rebirthMultiplier(save.rebirths);
-  const coins = Math.floor(income * OFFLINE.rate * seconds);
+  const coins = Math.floor(steadyIncome(save) * OFFLINE.rate * seconds);
   return coins > 0 ? { away, seconds, coins } : null;
 }

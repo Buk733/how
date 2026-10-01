@@ -96,6 +96,11 @@ export function totalIncome(save: SaveData, now = 0): number {
   return baseIncome(save) * incomeFactor(save, now);
 }
 
+/** Доход без ускорителя — с печью и перерождениями: столько игрок получает обычно (и вне игры). */
+export function steadyIncome(save: SaveData): number {
+  return baseIncome(save) * incomeMultiplier(save.upgrades) * rebirthMultiplier(save.rebirths);
+}
+
 /** Сколько вернут за персонажа, которого заменили или продали. */
 export function sellValue(def: CharacterDef, gold = false): number {
   return Math.floor(unitPrice(def, gold) * ECONOMY.sellRatio);

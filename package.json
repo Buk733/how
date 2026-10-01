@@ -8,9 +8,11 @@
     "dev": "vite games/steal",
     "build": "npm run typecheck && vite build games/steal",
     "preview": "vite preview games/steal",
+    "artifact": "node tools/artifact.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "pacing": "vitest run games/steal/src/pacing.test.ts --silent=false",
     "art": "node tools/art/build.mjs"
   },
   "engines": {

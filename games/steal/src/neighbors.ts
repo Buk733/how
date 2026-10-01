@@ -1,5 +1,6 @@
 // Логика соседей-ботов без графики: кого они держат на полке и у кого что красть.
 import type { Rng } from '@engine/rng';
+import { BOT } from './config';
 import { characterById, type CharacterDef } from './data/characters';
 import { RARITIES, RARITY_ORDER, type Rarity } from './data/rarity';
 import { slotUnit, unitIncome } from './economy';
@@ -10,12 +11,18 @@ export function tierOf(rarity: Rarity): number {
   return RARITY_ORDER.indexOf(rarity);
 }
 
-/** «Сила» игрока — самая высокая редкость у него на полке (−1, если полок пуст). */
+/**
+ * «Сила» игрока — редкость его BOT.powerDepth-го по редкости персонажа (если персонажей меньше —
+ * самого слабого из них), −1, если полок пуст. Соседи равняются на неё: один везунчик из кейса
+ * или колеса не поднимает их полки сразу на ступень выше.
+ */
 export function playerPower(slots: readonly SlotSave[]): number {
-  return slots.reduce((best, slot) => {
-    const def = slot.id ? characterById(slot.id) : undefined;
-    return def ? Math.max(best, tierOf(def.rarity)) : best;
-  }, -1);
+  const tiers = slots
+    .map((slot) => (slot.id ? characterById(slot.id) : undefined))
+    .filter((def): def is CharacterDef => def !== undefined)
+    .map((def) => tierOf(def.rarity))
+    .sort((a, b) => b - a);
+  return tiers.length > 0 ? tiers[Math.min(BOT.powerDepth, tiers.length) - 1] : -1;
 }
 
 /** Существующие редкости (у которых есть персонажи с дорожки), по возрастанию. */

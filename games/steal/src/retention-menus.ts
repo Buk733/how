@@ -86,7 +86,7 @@ export class RetentionMenus {
     this.welcome.show({
       away: formatAway(earned.away),
       coins: earned.coins,
-      note: `Без тебя персонажи парятся вполсилы и не дольше ${OFFLINE.maxHours} ч${capped ? ' — заходи почаще!' : ''}`,
+      note: `Без тебя персонажи приносят ${Math.round(OFFLINE.rate * 100)}% дохода и копят не дольше ${OFFLINE.maxHours} ч${capped ? ' — заходи почаще!' : ''}`,
     });
   }
 

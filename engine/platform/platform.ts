@@ -36,13 +36,18 @@ export interface PlatformOptions {
 const SDK_URL = '/sdk.js';
 const SDK_TIMEOUT_MS = 5000;
 
+/** Режим демо-сборки для артефакта (npm run artifact): без SDK, вместо рекламы — табличка на полторы секунды. */
+const DEMO_MODE = 'demo';
+const DEMO_AD_MS = 1500;
+
 /**
  * Подключает Yandex Games SDK, если игра открыта на Яндекс Играх, иначе — локальную заглушку.
- * В режиме разработки (npm run dev) SDK не загружается вовсе.
+ * В режиме разработки (npm run dev) и в демо-сборке SDK не загружается вовсе.
  */
 export async function initPlatform(options: PlatformOptions): Promise<Platform> {
   const { LocalPlatform } = await import('./local');
   if (import.meta.env.DEV) return new LocalPlatform(options.storageKey);
+  if (import.meta.env.MODE === DEMO_MODE) return new LocalPlatform(options.storageKey, { adPreviewMs: DEMO_AD_MS });
   try {
     await loadScript(SDK_URL, SDK_TIMEOUT_MS);
     if (!window.YaGames) throw new Error('YaGames не найден');

@@ -128,8 +128,7 @@ export class AudioManager {
 
   async load(id: string, url: string, options: LoadOptions = {}): Promise<void> {
     if (!this.context) return;
-    const response = await fetch(url);
-    const buffer = await this.context.decodeAudioData(await response.arrayBuffer());
+    const buffer = await this.context.decodeAudioData(await readBytes(url));
     this.setBuffer(id, buffer, options);
   }
 
@@ -286,4 +285,17 @@ function rms(buffer: AudioBuffer): number {
   let sum = 0;
   for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
   return Math.sqrt(sum / Math.max(1, data.length));
+}
+
+/**
+ * Байты записи по URL. Встроенные data:-ссылки (демо-сборка для артефакта) разбираются без fetch:
+ * песочница страницы может запрещать fetch к data:.
+ */
+async function readBytes(url: string): Promise<ArrayBuffer> {
+  const header = /^data:[^,]*;base64,/.exec(url);
+  if (!header) return (await fetch(url)).arrayBuffer();
+  const binary = atob(url.slice(header[0].length));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
 }
