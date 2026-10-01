@@ -1,7 +1,7 @@
 // Маленький чиптюн-синтезатор: мелодия записывается текстом и превращается в сэмплы.
 // Без Web Audio — поэтому его легко тестировать.
 
-export type Wave = 'pulse' | 'triangle' | 'noise' | 'kick';
+export type Wave = 'pulse' | 'triangle' | 'sine' | 'noise' | 'kick';
 
 export interface TrackDef {
   readonly wave: Wave;
@@ -17,6 +17,17 @@ export interface TrackDef {
   readonly decay?: number;
   /** Вибрато — доля частоты (0.004 — едва заметно). */
   readonly vibrato?: number;
+  /** Нарастание ноты, секунды (по умолчанию 0.004 — щелчок; 0.05 и больше — мягко, как флейта). */
+  readonly attack?: number;
+  /** Затихание после конца ноты, секунды (по умолчанию 0.03; 0.3 и больше — нота «тает»). */
+  readonly release?: number;
+}
+
+/** Эхо всей мелодии: повтор через delay секунд, каждый тише в feedback раз; mix — громкость эха. */
+export interface EchoDef {
+  readonly delay: number;
+  readonly feedback: number;
+  readonly mix: number;
 }
 
 export interface SongDef {
@@ -24,6 +35,8 @@ export interface SongDef {
   /** Шагов в одной доле: 2 — восьмые. */
   readonly stepsPerBeat: number;
   readonly tracks: readonly TrackDef[];
+  /** Эхо поверх всех дорожек (по кругу: хвост эха с конца переходит в начало). */
+  readonly echo?: EchoDef;
 }
 
 export interface NoteEvent {
@@ -93,6 +106,7 @@ export function* renderSongGradually(song: SongDef, sampleRate: number): Generat
       yield;
     }
   }
+  if (song.echo) yield* addEcho(out, song.echo, sampleRate);
   // мягкое ограничение: громкие аккорды не «хрипят»
   for (let i = 0; i < out.length; i++) {
     out[i] = Math.tanh(out[i]);
@@ -113,9 +127,9 @@ function renderNote(
   const baseStep = (440 * 2 ** ((pitch - 69) / 12)) / sampleRate;
   const duty = track.duty ?? 0.5;
   const vibrato = track.vibrato ?? 0;
-  const attack = Math.max(1, Math.round(ATTACK * sampleRate));
+  const attack = Math.max(1, Math.round((track.attack ?? ATTACK) * sampleRate));
   const hold = Math.round(duration * sampleRate);
-  const release = Math.round(RELEASE * sampleRate);
+  const release = Math.max(1, Math.round((track.release ?? RELEASE) * sampleRate));
   // затухания считаются умножением на каждом сэмпле — без exp в цикле
   const decayFactor = Math.exp(-(track.decay ?? 0) / sampleRate);
   const sweepFactor = Math.exp(-30 / sampleRate);
@@ -125,7 +139,8 @@ function renderNote(
   let phase = 0;
   let index = start % out.length;
   for (let i = 0; i < hold + release; i++) {
-    let level = i < attack ? i / attack : (decayed *= decayFactor);
+    // мягкое нарастание — по четверти синуса, без излома в начале
+    let level = i < attack ? Math.sin(((i / attack) * Math.PI) / 2) : (decayed *= decayFactor);
     if (i >= hold) level *= 1 - (i - hold) / release;
     if (level < 1e-4 && i > attack) break;
     let sample = 0;
@@ -136,6 +151,9 @@ function renderNote(
         break;
       case 'triangle':
         sample = 1 - 4 * Math.abs(phase - 0.5);
+        break;
+      case 'sine':
+        sample = Math.sin(2 * Math.PI * phase);
         break;
       case 'noise':
         sample = noise();
@@ -159,6 +177,24 @@ function renderNote(
     phase += step;
     if (phase >= 1) phase -= 1;
   }
+}
+
+/**
+ * Эхо по кругу: wet[i] = feedback · (сухой[i − d] + wet[i − d]). Два прохода — чтобы эхо
+ * из конца мелодии попало в её начало и запись крутилась без шва.
+ */
+function* addEcho(out: Float32Array, echo: EchoDef, sampleRate: number): Generator<void, void, void> {
+  const n = out.length;
+  const d = Math.max(1, Math.round(echo.delay * sampleRate)) % n || 1;
+  const wet = new Float32Array(n);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < n; i++) {
+      const j = (i - d + n) % n;
+      wet[i] = echo.feedback * (out[j] + wet[j]);
+      if ((i & 0xffff) === 0xffff) yield;
+    }
+  }
+  for (let i = 0; i < n; i++) out[i] += wet[i] * echo.mix;
 }
 
 /** Прямоугольная волна со сглаженными скачками (PolyBLEP) и без постоянной составляющей. */

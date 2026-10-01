@@ -43,4 +43,30 @@ describe('chiptune', () => {
     }
     expect(Math.sqrt(sum / samples.length)).toBeGreaterThan(0.02);
   });
+
+  it('синусоида с мягкой атакой нарастает плавно, а не щелчком', () => {
+    const rate = 8000;
+    const soft: SongDef = { bpm: 60, stepsPerBeat: 1, tracks: [{ wave: 'sine', volume: 0.5, attack: 0.2, release: 0.2, notes: 'A4:1 r:1' }] };
+    const samples = renderSong(soft, rate);
+    const peak = (from: number, to: number) => Math.max(...Array.from(samples.subarray(from, to), Math.abs));
+    // первые 10 мс почти тишина, к 0.3 с — полная громкость
+    expect(peak(0, 80)).toBeLessThan(0.1);
+    expect(peak(2000, 2800)).toBeGreaterThan(0.4);
+    // после конца ноты (1 с) звук тает за release, а не обрывается
+    expect(peak(8000, 8400)).toBeGreaterThan(0.05);
+    expect(peak(10000, 16000)).toBeLessThan(1e-3);
+  });
+
+  it('эхо повторяет удар через delay и заворачивается в начало мелодии', () => {
+    const rate = 8000;
+    const dry: SongDef = { bpm: 60, stepsPerBeat: 1, tracks: [{ wave: 'sine', volume: 0.5, decay: 40, notes: 'r:3 A4:1' }] };
+    const wet: SongDef = { ...dry, echo: { delay: 1.5, feedback: 0.5, mix: 1 } };
+    const a = renderSong(dry, rate);
+    const b = renderSong(wet, rate);
+    const energy = (s: Float32Array, from: number, to: number) => s.subarray(from, to).reduce((sum, x) => sum + x * x, 0);
+    // удар на 3-й секунде, эхо через 1.5 с — уже в начале следующего круга (0.5 с)
+    expect(energy(a, 4000, 6000)).toBeLessThan(1e-6);
+    expect(energy(b, 4000, 6000)).toBeGreaterThan(1);
+  });
 });
+

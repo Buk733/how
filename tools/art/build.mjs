@@ -34,9 +34,9 @@ const outputs = {
     ]),
   ),
   // герой и соседи-боты: тот же герой в других цветах
-  'sprites/hero.png': characters.hero(),
-  'sprites/neighbor-green.png': characters.hero({ r: '#38b764', R: '#257179', o: '#a7f070', b: '#f4f4f4', B: '#94b0c2' }),
-  'sprites/neighbor-purple.png': characters.hero({ r: '#8e5bd6', R: '#5d275d', o: '#c7a1f0', b: '#73eff7', B: '#257179' }),
+  'sprites/hero.png': characters.neighbor(),
+  'sprites/neighbor-green.png': characters.neighbor({ r: '#38b764', R: '#257179', o: '#a7f070', b: '#f4f4f4', B: '#94b0c2' }),
+  'sprites/neighbor-purple.png': characters.neighbor({ r: '#8e5bd6', R: '#5d275d', o: '#c7a1f0', b: '#73eff7', B: '#257179' }),
   'sprites/broom-swing.png': characters.broomSwing(),
   // предметы и декор
   'sprites/coin.png': textures.coin(),

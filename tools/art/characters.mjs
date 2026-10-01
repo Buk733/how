@@ -344,8 +344,8 @@ export function hamam() {
   });
 }
 
-// ---------- Игрок: мальчик в красном капюшоне, 4 направления × 4 кадра ходьбы, 16×16 ----------
-export function hero(colors = {}) {
+// ---------- Соседи-боты (прежний герой в их цветах): 4 направления × 4 кадра ходьбы, 16×16 ----------
+export function neighbor(colors = {}) {
   const s = sheet(16, 16, 4, 4);
   const pal = { r: C.red, R: C.plum, o: C.orange, s: C.yellow, k: C.ink, b: C.blue, B: C.navy, y: C.yellow, d: C.shadow, ...colors };
   const front = ['................', '.....rrrrrr.....', '....rorrrrrr....', '...rorrrrrrrr...', '...rrrrrrrrrr...', '...rrssssssrr...', '...rrskssksrr...', '...rrossssorr...', '...RrrssssrrR...', '....RrbbbbrR....', '...RrbbbbbbrR...', '...srbbyybbrs...', '....RBbbbbBR....'];
