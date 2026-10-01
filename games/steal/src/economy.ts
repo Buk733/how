@@ -1,6 +1,7 @@
 // Правила экономики без графики — их легко тестировать.
 import { ECONOMY, GOLD } from './config';
 import { characterById, type CharacterDef } from './data/characters';
+import { rebirthMultiplier } from './rebirth';
 import type { SaveData, SlotSave } from './save';
 import { incomeMultiplier } from './upgrades';
 
@@ -80,12 +81,12 @@ export function boostActive(save: SaveData, now: number): boolean {
   return now < save.boostUntil;
 }
 
-/** Во сколько раз больше приносят персонажи: печь и ускоритель. */
+/** Во сколько раз больше приносят персонажи: печь, перерождения и ускоритель. */
 export function incomeFactor(save: SaveData, now: number): number {
-  return incomeMultiplier(save.upgrades) * (boostActive(save, now) ? 2 : 1);
+  return incomeMultiplier(save.upgrades) * rebirthMultiplier(save.rebirths) * (boostActive(save, now) ? 2 : 1);
 }
 
-/** Доход персонажей на полке без печи и ускорителя — по нему растут соседи. */
+/** Доход персонажей на полке без печи, перерождений и ускорителя — по нему растут соседи. */
 export function baseIncome(save: SaveData): number {
   return save.slots.reduce((sum, slot) => sum + slotIncome(slot), 0);
 }

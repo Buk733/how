@@ -206,6 +206,32 @@ export class Neighborhood {
     return this.carried !== null;
   }
 
+  /** Кто-то из соседей сейчас в набеге на баню игрока. */
+  get raidActive(): boolean {
+    return this.neighbors.some((n) => n.raidSlot >= 0 || n.raidLoot !== null);
+  }
+
+  /**
+   * После перерождения: на полках соседей — новые персонажи по силе игрока (у него теперь пусто),
+   * иначе можно было бы сразу утащить у них мифических.
+   */
+  restock(): void {
+    const { rng, save } = this.ctx;
+    const power = playerPower(save.slots);
+    for (const n of this.neighbors) {
+      const roster = createNeighborRoster(rng, CHARACTERS, power, BOT.slots, GOLD.neighborChance, n.config.loot);
+      roster.forEach((unit, slot) => {
+        const old = n.residents[slot];
+        if (old) this.ctx.removeBrainrot(old);
+        const def = unit ? characterById(unit.id) : undefined;
+        n.slots[slot] = def && unit ? unit : null;
+        n.residents[slot] = def && unit ? this.seatResident(n, slot, def, unit.gold) : null;
+      });
+      n.refillTimer = rng.range(...BOT.refillInterval);
+    }
+    this.ctx.markDirty(true);
+  }
+
   /** Во сколько раз медленнее бежит игрок (с добычей на руках — медленнее). */
   get speedFactor(): number {
     return this.carried ? PLAYER.carrySpeedFactor : 1;

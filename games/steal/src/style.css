@@ -63,7 +63,8 @@ body {
 .resident-tag,
 .float-coins,
 .float-spend,
-.float-hit {
+.float-hit,
+.float-album {
   position: absolute;
   left: 0;
   top: 0;
@@ -278,6 +279,13 @@ body {
   color: var(--red);
 }
 
+/* новая карточка в альбоме: медленнее и выше остальных надписей */
+.float-album {
+  font-size: 16px;
+  color: #73eff7;
+  animation: float-up 2s ease-out forwards;
+}
+
 .float-hit {
   font-size: 24px;
   color: var(--paper);
@@ -327,8 +335,14 @@ body {
   color: var(--gold);
 }
 
-.hud-boost[hidden] {
+.hud-boost[hidden],
+.hud-rebirth[hidden] {
   display: none;
+}
+
+.hud-rebirth {
+  font-size: 13px;
+  color: #73eff7;
 }
 
 .hud-menus {
@@ -386,6 +400,48 @@ body {
 
   .hud-menu-text {
     display: none;
+  }
+}
+
+/* узкий экран (телефон стоя): значки с мелкой подписью в два столбца — не закрывают полок */
+@media (max-width: 560px) and (min-height: 521px) {
+  .hud-menus {
+    grid-template-columns: repeat(2, 70px);
+    gap: 5px;
+  }
+
+  .hud-menu {
+    min-width: 0;
+    width: 70px;
+    padding: 5px 2px 4px;
+    display: grid;
+    justify-items: center;
+    gap: 1px;
+    font-size: 20px;
+    text-align: center;
+  }
+
+  .hud-menu-icon {
+    margin-right: 0;
+  }
+
+  .hud-menu-text {
+    max-width: 66px;
+    overflow: hidden;
+    font-size: 9px;
+    letter-spacing: -0.2px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* нечётная последняя кнопка одна в ряду — на всю ширину, длинная подпись помещается */
+  .hud-menu:last-child:nth-child(odd) {
+    grid-column: span 2;
+    width: auto;
+  }
+
+  .hud-menu:last-child:nth-child(odd) .hud-menu-text {
+    max-width: none;
   }
 }
 
@@ -783,6 +839,303 @@ body {
 
 .hero-card.selected .hero-status {
   background: var(--green);
+}
+
+/* с возвращением: доход вне игры */
+
+.welcome-lead {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.welcome-coins {
+  margin: 10px 0 4px;
+  font-size: 34px;
+  color: var(--gold);
+  text-align: center;
+  text-shadow: var(--outline);
+}
+
+.welcome-note {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.welcome-buttons {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+/* награды за вход */
+
+.daily-streak {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--green);
+  text-align: center;
+}
+
+.daily-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.daily-cell {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  padding: 6px 4px 8px;
+  border: 3px solid rgb(244 244 244 / 0.1);
+  border-radius: 12px;
+  background: rgb(26 28 44 / 0.55);
+  text-align: center;
+}
+
+.daily-cell.big {
+  grid-column: span 2;
+  border-color: rgb(255 205 117 / 0.5);
+}
+
+.daily-cell.claimed {
+  opacity: 0.45;
+}
+
+.daily-cell.claimed .daily-icon {
+  color: var(--green);
+}
+
+.daily-cell.today {
+  border-color: var(--green);
+  background: rgb(167 240 112 / 0.15);
+  animation: cell-hop 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes cell-hop {
+  to {
+    transform: translateY(-4px);
+  }
+}
+
+.daily-day {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--silver);
+}
+
+.daily-icon {
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.daily-label {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.daily-amount {
+  font-size: 12px;
+  color: var(--gold);
+}
+
+.daily-claim {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.daily-claim[hidden] {
+  display: none;
+}
+
+.daily-wait {
+  margin-top: 10px;
+  font-size: 14px;
+  color: var(--gold);
+  text-align: center;
+}
+
+.daily-wait:empty {
+  display: none;
+}
+
+/* альбом */
+
+.album-summary {
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--gold);
+  text-align: center;
+}
+
+.album-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.album-card {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border: 3px solid var(--card-color);
+  border-radius: 12px;
+  background: rgb(26 28 44 / 0.55);
+  text-align: center;
+}
+
+.album-card.unknown {
+  border-color: rgb(244 244 244 / 0.12);
+}
+
+/* кого ещё не было — тёмный силуэт */
+.album-card.unknown .sprite-icon {
+  filter: brightness(0) opacity(0.45);
+}
+
+.album-name {
+  min-height: 2.4em;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.album-gold {
+  font-size: 11px;
+  color: rgb(244 244 244 / 0.35);
+}
+
+.album-gold.got {
+  color: var(--gold);
+}
+
+.album-secrets {
+  display: grid;
+  gap: 4px;
+}
+
+.album-secret {
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgb(26 28 44 / 0.55);
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.album-secret.found {
+  color: var(--green);
+  opacity: 1;
+}
+
+/* перерождение */
+
+.rebirth-now {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  opacity: 0.8;
+}
+
+.rebirth-next {
+  margin: 6px 0 10px;
+  font-size: 18px;
+  color: #73eff7;
+  text-align: center;
+  text-shadow: var(--outline);
+}
+
+.rebirth-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rebirth-list {
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.rebirth-list.reset {
+  background: rgb(255 107 107 / 0.12);
+}
+
+.rebirth-list.keep {
+  background: rgb(167 240 112 / 0.12);
+}
+
+.rebirth-list-title {
+  margin-bottom: 2px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.rebirth-list.reset .rebirth-list-title {
+  color: var(--red);
+}
+
+.rebirth-list.keep .rebirth-list-title {
+  color: var(--green);
+}
+
+.rebirth-progress {
+  position: relative;
+  height: 26px;
+  margin: 12px 0 10px;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  background: rgb(26 28 44 / 0.8);
+  overflow: hidden;
+}
+
+.rebirth-bar {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  transform: scaleX(var(--progress, 0));
+  background: linear-gradient(90deg, #41a6f6, #73eff7);
+}
+
+.rebirth-bar-text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  text-shadow: var(--outline);
+}
+
+.rebirth-button {
+  display: block;
+  width: 100%;
+}
+
+.rebirth-button.confirm {
+  background: var(--red);
+  box-shadow: 0 4px 0 #b13e53;
+  color: var(--paper);
+  text-shadow: var(--outline);
+}
+
+.rebirth-blocked {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--red);
+  text-align: center;
+}
+
+.rebirth-blocked:empty {
+  display: none;
 }
 
 /* прокачка */

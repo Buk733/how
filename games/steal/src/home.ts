@@ -194,6 +194,7 @@ export class Home {
     save.slots[choice.slot] = { id: brainrot.def.id, gold: brainrot.gold, stored: 0 };
     this.residents[choice.slot] = brainrot;
     brainrot.sendTo(choice.slot, this.pathTo(choice.slot, brainrot.position));
+    this.ctx.collect(brainrot.def, brainrot.gold, brainrot.position.clone().setY(2.6));
     this.ctx.markDirty(true);
   }
 
@@ -214,6 +215,7 @@ export class Home {
     if (!choice) {
       const coins = sellValue(def, gold);
       this.ctx.save.coins += coins;
+      this.ctx.collect(def, gold, this.ctx.player.position.clone().setY(2.6));
       this.ctx.markDirty(true);
       return { kind: 'sold', coins };
     }
@@ -234,6 +236,7 @@ export class Home {
     const saved = this.ctx.save.slots[slot];
     this.ctx.save.slots[slot] = { id: def.id, gold, stored: saved.stored };
     this.ctx.labels.float('♨️', brainrot.position.clone().setY(2.2), 'float-coins', 1400);
+    this.ctx.collect(def, gold, brainrot.position.clone().setY(2.8));
     this.ctx.markDirty(true);
   }
 
@@ -271,6 +274,18 @@ export class Home {
     this.ctx.labels.float(`+${formatNumber(refund)}`, brainrot.position.clone().setY(2), 'float-coins');
     this.ctx.removeBrainrot(brainrot);
     this.ctx.markDirty(true);
+  }
+
+  /** Перерождение: все уходят с полка (места и монеты на плитах сбросило сохранение). */
+  clearShelf(): void {
+    this.residents.forEach((resident, slot) => {
+      if (!resident) return;
+      this.ctx.labels.float('💨', resident.position.clone().setY(2), 'float-spend', 1200);
+      this.ctx.removeBrainrot(resident);
+      this.residents[slot] = null;
+    });
+    this.chatter.hide();
+    this.chatterFrom = null;
   }
 
   /** Самый ценный персонаж, которого может утащить вор (−1 — красть нечего). */

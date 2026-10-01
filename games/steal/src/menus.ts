@@ -11,6 +11,8 @@ import { RARITIES } from './data/rarity';
 import { sellValue, totalIncome, unitIncome, unitName } from './economy';
 import type { Home, RewardResult } from './home';
 import { characterNearTier, playerPower } from './neighbors';
+import type { OfflineEarnings } from './offline';
+import { RetentionMenus, type RetentionActions, type RetentionMenuId } from './retention-menus';
 import { describeRivals } from './rivals';
 import { CasePanel, type CaseCardView, type CaseResultView, type ReelItem } from './ui/case-panel';
 import { HeroPanel } from './ui/hero-panel';
@@ -28,17 +30,16 @@ const REEL_WINNER = 40;
 const REEL_LENGTH = 46;
 
 /** Что окна просят у игры. */
-export interface MenuActions {
-  /** Реклама за награду: true — игрок досмотрел, награду нужно выдать. */
-  showRewardedAd(): Promise<boolean>;
+export interface MenuActions extends RetentionActions {
   /** Сменить героя. */
   pickHero(id: HeroId): void;
 }
 
 /**
- * Окна поверх игры: прокачка, кейсы, колесо удачи, парилка и выбор героя. Открыто не больше одного.
- * Награды выдаются, когда лента или колесо остановились; если окно закрыли раньше
- * или вкладку свернули — сразу (settle), чтобы ничего не пропало.
+ * Окна поверх игры: прокачка, кейсы, колесо удачи, парилка, выбор героя и окна удержания
+ * (RetentionMenus). Открыто не больше одного; всплывающие сами (доход вне игры, награда за вход)
+ * ждут в очереди, пока игрок не закроет текущее. Награды выдаются, когда лента или колесо
+ * остановились; если окно закрыли раньше или вкладку свернули — сразу (settle), чтобы ничего не пропало.
  */
 export class Menus {
   private readonly ctx: GameContext;
@@ -49,8 +50,11 @@ export class Menus {
   private readonly wheel: WheelPanel;
   private readonly upgrader: UpgraderPanel;
   private readonly hero: HeroPanel;
+  private readonly retention: RetentionMenus;
   private readonly modals: Record<MenuId, Modal>;
   private current: MenuId | null = null;
+  /** Окна, которые всплывут сами, когда игрок закроет текущее. */
+  private readonly queue: MenuId[] = [];
   /** Награда, которую покажет и выдаст остановившаяся анимация. */
   private pending: (() => void) | null = null;
   private upgraderSlot: number | null = null;
@@ -92,12 +96,14 @@ export class Menus {
       },
       close,
     );
+    this.retention = new RetentionMenus(container, ctx, actions, close);
     this.modals = {
       upgrades: this.upgrades.modal,
       cases: this.cases.modal,
       wheel: this.wheel.modal,
       upgrader: this.upgrader.modal,
       hero: this.hero.modal,
+      ...this.retention.modals,
     };
   }
 
@@ -108,23 +114,31 @@ export class Menus {
 
   /** Открыть окно (или закрыть, если оно уже открыто). */
   toggle(menu: MenuId): void {
-    const next = this.current === menu ? null : menu;
-    this.close();
-    if (!next) return;
-    this.current = next;
-    this.modals[next].setOpen(true);
-    if (next === 'cases') this.cases.showShop();
-    if (next === 'upgrader') this.upgrader.resetHeat();
-    this.refresh();
+    if (this.current === menu) {
+      this.close();
+      return;
+    }
+    this.closeCurrent();
+    this.show(menu);
   }
 
+  /** Окно, которое всплывает само: сразу, если ничего не открыто, иначе — после текущего. */
+  popup(menu: MenuId): void {
+    if (this.current === null) this.show(menu);
+    else if (this.current !== menu && !this.queue.includes(menu)) this.queue.push(menu);
+  }
+
+  /** Доход вне игры: окно «С возвращением!» всплывёт первым. */
+  offerWelcome(earned: OfflineEarnings): void {
+    this.retention.offerWelcome(earned);
+    this.popup('welcome');
+  }
+
+  /** Игрок закрыл окно: следующее из очереди всплывает само. */
   close(): void {
-    this.settle();
-    this.cases.stop();
-    this.wheel.stop();
-    this.upgrader.stop();
-    for (const modal of Object.values(this.modals)) modal.setOpen(false);
-    this.current = null;
+    this.closeCurrent();
+    const next = this.queue.shift();
+    if (next) this.show(next);
   }
 
   /** Выдать отложенную награду прямо сейчас (окно закрыли, вкладку свернули). */
@@ -132,6 +146,24 @@ export class Menus {
     const pending = this.pending;
     this.pending = null;
     pending?.();
+    this.retention.settle();
+  }
+
+  private show(menu: MenuId): void {
+    this.current = menu;
+    this.modals[menu].setOpen(true);
+    if (menu === 'cases') this.cases.showShop();
+    if (menu === 'upgrader') this.upgrader.resetHeat();
+    this.refresh();
+  }
+
+  private closeCurrent(): void {
+    this.settle();
+    this.cases.stop();
+    this.wheel.stop();
+    this.upgrader.stop();
+    for (const modal of Object.values(this.modals)) modal.setOpen(false);
+    this.current = null;
   }
 
   /** Каждый кадр: отметки на кнопках и содержимое открытого окна. */
@@ -141,6 +173,7 @@ export class Menus {
     hud.setMenuBadge('upgrades', UPGRADE_IDS.some((id) => checkUpgrade(save, id).ok));
     hud.setMenuBadge('cases', freeCaseIn(save, now) === 0 || Object.keys(save.keys).length > 0);
     hud.setMenuBadge('wheel', spinState(save, now).free);
+    this.retention.badges();
     this.refresh();
   }
 
@@ -164,6 +197,10 @@ export class Menus {
           HEROES.map((hero) => ({ ...hero, sheetUrl: spriteUrl(hero.sprite), selected: hero.id === this.ctx.save.hero })),
         );
         break;
+      case null:
+        break;
+      default:
+        this.retention.refresh(this.current satisfies RetentionMenuId);
     }
   }
 

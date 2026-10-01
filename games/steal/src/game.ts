@@ -10,12 +10,14 @@ import { Rng } from '@engine/rng';
 import type { SpriteSheet, SpriteSheetDef } from '@engine/sprite';
 import { Broom } from './broom';
 import { Carpet, RARE_THEME } from './carpet';
-import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
+import { addToCollection } from './collection';
+import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, REBIRTH, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
 import type { Action, GameContext, TutorialEvent } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
 import { heroById, type HeroId } from './data/heroes';
 import { spriteUrl, textureUrl } from './data/sprites';
-import { baseIncome, totalIncome } from './economy';
+import { dailyState } from './daily';
+import { baseIncome, totalIncome, unitName } from './economy';
 import { Effects } from './effects';
 import { Brainrot } from './entities/brainrot';
 import { Player } from './entities/player';
@@ -24,7 +26,10 @@ import { BEAR_TUNE_ID, Landmarks } from './landmarks';
 import { Menus } from './menus';
 import { BANYA_POLKA } from './music';
 import { Neighborhood } from './neighborhood';
+import { offlineEarnings } from './offline';
 import { PORTAL_TEXTURES } from './portals';
+import { rebirth, rebirthMultiplier } from './rebirth';
+import { formatMultiplier } from './retention-menus';
 import { parseSave, TUTORIAL_DONE, type SaveData } from './save';
 import { Spawner } from './spawner';
 import { Hud, type MenuId } from './ui/hud';
@@ -45,7 +50,16 @@ const MUSIC_SAMPLE_RATE = 32000;
 /** Сколько миллисекунд кадра можно тратить на синтез мелодии. */
 const MUSIC_JOB_BUDGET_MS = 4;
 /** Клавиши окон. */
-const MENU_KEYS: Readonly<Record<string, MenuId>> = { KeyU: 'upgrades', KeyK: 'cases', KeyL: 'wheel', KeyP: 'upgrader', KeyH: 'hero' };
+const MENU_KEYS: Readonly<Record<string, MenuId>> = {
+  KeyU: 'upgrades',
+  KeyK: 'cases',
+  KeyL: 'wheel',
+  KeyP: 'upgrader',
+  KeyN: 'daily',
+  KeyC: 'album',
+  KeyR: 'rebirth',
+  KeyH: 'hero',
+};
 /** Как часто из-под ног бегущего героя вылетает облачко пыли, секунды. */
 const DUST_INTERVAL = 0.16;
 
@@ -170,6 +184,8 @@ export class Game implements GameContext {
   /** Фоновая мелодия притихла, пока звучит трек редкого персонажа или балалайка медведя. */
   private musicDucked = false;
   private dustTimer = 0;
+  /** Когда (секунды игры) показать полноэкранную рекламу после перерождения; 0 — не надо. */
+  private rebirthAdAt = 0;
 
   /** Загружает всё нужное и собирает игру внутри container. */
   static async create(container: HTMLElement, platform: Platform): Promise<Game> {
@@ -265,10 +281,17 @@ export class Game implements GameContext {
     this.carpet = new Carpet(this, this.home, new Spawner(this.rng, CHARACTERS, CARPET.spawnInterval));
     this.carpet.prefill();
     this.broom = new Broom(this, sheets.broom);
+    // доход вне игры считается до первого сохранения: оно перезапишет время savedAt
+    const offline = offlineEarnings(save, Date.now());
     this.menus = new Menus(container, this, this.home, {
       showRewardedAd: () => this.showRewardedAd(),
       pickHero: (id) => this.pickHero(id),
+      rebirth: () => this.rebirth(),
+      rebirthBlocked: () => this.rebirthBlocked(),
     });
+    if (offline) this.menus.offerWelcome(offline);
+    // награда за вход всплывает сама, когда обучение пройдено (в первые минуты — только отметка на кнопке)
+    if (save.tutorial >= TUTORIAL_DONE && dailyState(save, Date.now()).available) this.menus.popup('daily');
 
     platform.onPause(() => this.setPausedByPlatform(true));
     platform.onResume(() => this.setPausedByPlatform(false));
@@ -332,6 +355,7 @@ export class Game implements GameContext {
     const clock = Date.now();
     this.hud.setWallet(this.save.coins, totalIncome(this.save, clock));
     this.hud.setBoost(this.save.boostUntil - clock);
+    this.hud.setRebirth(this.save.rebirths > 0 ? `🔄 доход ${formatMultiplier(rebirthMultiplier(this.save.rebirths))} навсегда` : '');
     this.hud.setBroom(this.broom.recharge, !this.neighborhood.isCarrying && !this.player.isStunned);
     // пока открыто окно, соседи не начинают новых набегов
     this.neighborhood.raidsPaused = this.menus.open !== null;
@@ -340,6 +364,10 @@ export class Game implements GameContext {
     this.updateMusic();
     this.cameraRig.update(dt, this.player.position);
     this.updateTutorialPointer();
+    if (this.rebirthAdAt > 0 && this.time >= this.rebirthAdAt) {
+      this.rebirthAdAt = 0;
+      void this.showFullscreenAd();
+    }
     this.maybeSave();
   }
 
@@ -393,7 +421,52 @@ export class Game implements GameContext {
     this.markDirty(true);
   }
 
+  // ---------------------------------------------------------------- перерождение
+
+  /** Почему сейчас нельзя переродиться или null. */
+  private rebirthBlocked(): string | null {
+    if (this.neighborhood.isCarrying) return 'Сначала донеси добычу до бани';
+    if (this.neighborhood.raidActive) return 'Сначала разберись с вором';
+    return null;
+  }
+
+  /**
+   * Перерождение: сохранение сбрасывается (rebirth.ts), полок пустеет, соседям — новые персонажи.
+   * Через пару секунд — полноэкранная реклама: это логическая пауза между «жизнями».
+   */
+  private rebirth(): boolean {
+    if (this.rebirthBlocked() || !rebirth(this.save)) {
+      this.audio.blip('error');
+      return false;
+    }
+    this.home.clearShelf();
+    this.neighborhood.restock();
+    this.menus.close();
+    this.hud.showBanner(`🔄 Перерождение! Доход ${formatMultiplier(rebirthMultiplier(this.save.rebirths))} навсегда`, '#73eff7', 4200);
+    this.fx.sparkles(this.player.position, true);
+    this.fx.shake(0.4);
+    this.audio.blip('gold');
+    this.markDirty(true);
+    this.flushSave();
+    this.rebirthAdAt = this.time + REBIRTH.adDelay;
+    return true;
+  }
+
   // ---------------------------------------------------------------- реклама
+
+  /** Полноэкранная реклама — только в логических паузах; на время показа игра и звук на паузе. */
+  private async showFullscreenAd(): Promise<void> {
+    this.adPlaying = true;
+    this.applyPause();
+    try {
+      await this.platform.showFullscreenAd();
+    } catch (error) {
+      console.warn('Реклама не показалась:', error);
+    } finally {
+      this.adPlaying = false;
+      this.applyPause();
+    }
+  }
 
   /** Реклама за награду: на время показа игра и звук на паузе. true — награду нужно выдать. */
   private async showRewardedAd(): Promise<boolean> {
@@ -425,6 +498,12 @@ export class Game implements GameContext {
     brainrot.label?.remove();
     brainrot.label = null;
     brainrot.dispose();
+  }
+
+  collect(def: CharacterDef, gold: boolean, at: THREE.Vector3): void {
+    if (!addToCollection(this.save, def, gold)) return;
+    this.labels.float(`📖 Новая карточка: ${unitName(def, gold)}`, at, 'float-album', 2000);
+    this.markDirty(true);
   }
 
   playVoice(def: CharacterDef): void {

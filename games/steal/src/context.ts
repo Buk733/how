@@ -39,6 +39,8 @@ export interface GameContext {
   removeBrainrot(brainrot: Brainrot): void;
   /** Мемная фраза персонажа. */
   playVoice(def: CharacterDef): void;
+  /** Персонаж попал к игроку: отметить в альбоме (новая карточка — надпись над at). */
+  collect(def: CharacterDef, gold: boolean, at: THREE.Vector3): void;
   markDirty(urgent?: boolean): void;
   tutorialEvent(event: TutorialEvent): void;
 }

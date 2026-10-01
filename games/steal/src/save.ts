@@ -47,6 +47,12 @@ export interface SaveData {
   boostUntil: number;
   /** Найденные пасхалки (id из data/secrets.ts). */
   secrets: string[];
+  /** Альбом: кого игрок уже получал — «id», а для «Голды» — «id:gold». Перерождение его не трогает. */
+  collection: string[];
+  /** Ежедневные награды: в какие сутки (ГГГГ-ММ-ДД, UTC) забрана последняя и сколько дней подряд. */
+  daily: { day: string; streak: number };
+  /** Сколько раз игрок перерождался: доход растёт навсегда (REBIRTH в config.ts). */
+  rebirths: number;
   /**
    * Шаг обучения: 0 — купить персонажа, 1 — собрать монеты,
    * 2 — украсть у соседа, 3 — пройдено.
@@ -82,6 +88,9 @@ export function createSave(): SaveData {
     adSpins: { day: '', count: 0 },
     boostUntil: 0,
     secrets: [],
+    collection: [],
+    daily: { day: '', streak: 0 },
+    rebirths: 0,
     tutorial: 0,
     muted: false,
     music: true,
@@ -158,5 +167,18 @@ export function parseSave(raw: unknown, knownIds: ReadonlySet<string>): SaveData
   if (Array.isArray(data.secrets)) {
     save.secrets = [...new Set(data.secrets.filter((id): id is string => typeof id === 'string' && SECRET_IDS.has(id)))];
   }
+  if (Array.isArray(data.collection)) {
+    const isKnown = (key: unknown): key is string => typeof key === 'string' && knownIds.has(key.replace(/:gold$/, ''));
+    save.collection = [...new Set(data.collection.filter(isKnown))];
+  } else {
+    // до версии 6 альбома не было: в него попадают все, кто сейчас на полке
+    const keys = save.slots.flatMap((slot) => (slot.id ? [slot.gold ? `${slot.id}:gold` : slot.id] : []));
+    save.collection = [...new Set(keys)];
+  }
+  const daily = record(data.daily);
+  if (daily && typeof daily.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(daily.day)) {
+    save.daily = { day: daily.day, streak: Math.max(1, Math.floor(nonNegative(daily.streak, 1))) };
+  }
+  save.rebirths = Math.floor(nonNegative(data.rebirths, 0));
   return save;
 }

@@ -24,6 +24,9 @@ describe('parseSave', () => {
     save.adSpins = { day: '2026-09-29', count: 2 };
     save.boostUntil = 333;
     save.secrets = ['hut', 'well'];
+    save.collection = ['kotost', 'panther:gold'];
+    save.daily = { day: '2026-09-30', streak: 4 };
+    save.rebirths = 2;
     save.hero = 'guy';
     save.music = false;
     save.tutorial = 3;
@@ -63,11 +66,27 @@ describe('parseSave', () => {
     expect(save.keys).toEqual({ bath: 1 });
   });
 
-  it('читает сохранение версии 5: героя ещё не выбирали — начинает аниме-девушка', () => {
-    const save = parseSave({ version: 5, coins: 10, slots: [], secrets: ['hut'] }, known);
+  it('читает сохранение версии 5: героя, альбома, наград за вход и перерождений ещё нет', () => {
+    const slots = [{ id: 'kotost', gold: true, stored: 1 }, { id: 'panther', stored: 2 }, { id: 'kotost', gold: true }];
+    const save = parseSave({ version: 5, coins: 10, unlocked: 4, slots, secrets: ['hut'] }, known);
     expect(save.version).toBe(6);
     expect(save.hero).toBe('girl');
     expect(save.secrets).toEqual(['hut']);
+    // в альбом сразу попадают все, кто сидит на полке
+    expect(save.collection).toEqual(['kotost:gold', 'panther']);
+    expect(save.daily).toEqual({ day: '', streak: 0 });
+    expect(save.rebirths).toBe(0);
+  });
+
+  it('альбом, награды за вход и перерождения: чинит сломанное', () => {
+    const save = parseSave(
+      { version: 6, collection: ['kotost', 'kotost', 'удалённый:gold', 'panther:gold', 7], daily: { day: 'вчера', streak: 3 }, rebirths: -2 },
+      known,
+    );
+    expect(save.collection).toEqual(['kotost', 'panther:gold']);
+    expect(save.daily).toEqual({ day: '', streak: 0 });
+    expect(save.rebirths).toBe(0);
+    expect(parseSave({ version: 6, daily: { day: '2026-10-01', streak: 0 } }, known).daily).toEqual({ day: '2026-10-01', streak: 1 });
   });
 
   it('незнакомый герой заменяется героем по умолчанию', () => {

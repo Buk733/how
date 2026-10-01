@@ -90,7 +90,7 @@ export function useSpin(save: SaveData, now: number, kind: 'free' | 'ad'): boole
   return true;
 }
 
-/** Включает ускоритель «×2 к доходу» (если уже работает — продлевает). */
-export function startBoost(save: SaveData, now: number): void {
-  save.boostUntil = Math.max(save.boostUntil, now) + REWARDS.boostMinutes * MINUTE;
+/** Включает ускоритель «×2 к доходу» на minutes минут (если уже работает — продлевает). */
+export function startBoost(save: SaveData, now: number, minutes: number = REWARDS.boostMinutes): void {
+  save.boostUntil = Math.max(save.boostUntil, now) + minutes * MINUTE;
 }

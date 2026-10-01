@@ -2,8 +2,8 @@ import { formatNumber } from '@engine/format';
 import { button, element, formatWait } from './dom';
 import { heroIcon } from './hero-panel';
 
-/** Окна: кнопками слева и круглой кнопкой героя справа. */
-export type MenuId = 'upgrades' | 'cases' | 'wheel' | 'upgrader' | 'hero';
+/** Окна: кнопками слева, круглой кнопкой героя справа и «С возвращением!», которое всплывает само. */
+export type MenuId = 'upgrades' | 'cases' | 'wheel' | 'upgrader' | 'daily' | 'album' | 'rebirth' | 'hero' | 'welcome';
 
 export interface HudCallbacks {
   onAction(): void;
@@ -26,6 +26,9 @@ const MENUS: readonly { readonly id: MenuId; readonly icon: string; readonly tex
   { id: 'cases', icon: '🎁', text: 'Кейсы', key: 'K' },
   { id: 'wheel', icon: '🎡', text: 'Колесо', key: 'L' },
   { id: 'upgrader', icon: '♨️', text: 'Парилка', key: 'P' },
+  { id: 'daily', icon: '📅', text: 'Награды', key: 'N' },
+  { id: 'album', icon: '📖', text: 'Альбом', key: 'C' },
+  { id: 'rebirth', icon: '🔄', text: 'Перерождение', key: 'R' },
 ];
 
 /** Интерфейс поверх игры: монеты, доход, кнопки действия, веника и окон, объявления. */
@@ -37,6 +40,7 @@ export class Hud {
   private readonly coins: HTMLSpanElement;
   private readonly income: HTMLDivElement;
   private readonly boost: HTMLDivElement;
+  private readonly rebirth: HTMLDivElement;
   private readonly menus = new Map<MenuId, HTMLButtonElement>();
   private readonly action: HTMLButtonElement;
   private readonly actionTitle: HTMLSpanElement;
@@ -66,9 +70,11 @@ export class Hud {
     this.income = element('div', 'hud-income');
     this.boost = element('div', 'hud-boost');
     this.boost.hidden = true;
+    this.rebirth = element('div', 'hud-rebirth');
+    this.rebirth.hidden = true;
     const row = element('div', 'hud-wallet-row');
     row.append(icon, this.coins);
-    wallet.append(row, this.income, this.boost);
+    wallet.append(row, this.income, this.boost, this.rebirth);
 
     const menus = element('div', 'hud-menus');
     for (const menu of MENUS) {
@@ -120,6 +126,13 @@ export class Hud {
     this.lastBoost = text;
     this.boost.hidden = text === '';
     this.boost.textContent = text;
+  }
+
+  /** Множитель дохода от перерождений: «🔄 доход ×1,5 навсегда» (пусто — перерождений не было). */
+  setRebirth(text: string): void {
+    if (this.rebirth.textContent === text) return;
+    this.rebirth.textContent = text;
+    this.rebirth.hidden = text === '';
   }
 
   setAction(view: ActionView | null): void {
