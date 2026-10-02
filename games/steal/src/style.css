@@ -1008,7 +1008,8 @@ body {
 
 .album-cards {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* minmax(0, …): длинное имя (в немецком) не раздвигает колонку за край окна */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
 }
 
@@ -1034,8 +1035,11 @@ body {
 
 .album-name {
   min-height: 2.4em;
+  max-width: 100%;
   font-size: 11px;
   line-height: 1.2;
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 
 .album-gold {

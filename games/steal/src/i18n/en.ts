@@ -15,6 +15,8 @@ export const en: Messages = {
     seconds: (value: string) => `${value}\u00a0s`,
     awayMinutes: (m: number) => `${m} min`,
     awayHours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
+    awayDays: (d: number) => `${d} ${days(d)}`,
+    percent: (value: string) => `${value}%`,
     perSecond: (amount: string) => `+${amount}/s`,
   },
 
@@ -295,7 +297,7 @@ export const en: Messages = {
     leadEnd: ', your characters steamed up:',
     claim: 'Claim',
     ad: (coins: string) => `📺 Ad → ×2 (💰 ${coins})`,
-    note: (rate: number, share: number) => `While you're away, characters earn ${rate}% of your income, but no more than ${share}% of your coins`,
+    note: (rate: string, share: string) => `While you're away, characters earn ${rate} of your income, but no more than ${share} of your coins`,
     capped: ' — come back more often!',
   },
 
@@ -312,7 +314,7 @@ export const en: Messages = {
 
   rebirth: {
     title: '🔄 Rebirth',
-    reset: 'Starts over',
+    reset: 'Resets',
     resetItems: ['coins', 'characters on the bench', 'bench seats', 'upgrades', 'neighbor levels'],
     keep: 'Stays forever',
     keepItems: ['album', 'secrets', 'case keys', 'daily rewards', 'hero'],
@@ -364,7 +366,7 @@ export const en: Messages = {
     chestNow: (coins: string) => `Right now that's 💰 ${coins}`,
     products: {
       income_x2: { name: 'Income ×2 forever', description: 'All characters earn twice as much — even after a rebirth' },
-      no_ads: { name: 'No ads', description: 'No ads in between. Reward videos stay — only if you want them' },
+      no_ads: { name: 'No ads', description: 'No fullscreen ads or banner. Reward videos stay — only if you want them' },
       coin_chest: { name: 'Coin chest', description: 'Half an hour of your income right away' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} coins!`,

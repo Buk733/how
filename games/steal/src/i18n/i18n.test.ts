@@ -120,6 +120,21 @@ describe('выбор языка', () => {
     expect(formatSeconds(1.84)).toBe('1,8\u00a0с');
   });
 
+  it('проценты, дни и согласование — как принято в каждом языке', () => {
+    setLanguage('tr');
+    expect(formatChance(0.46)).toBe('%46');
+    setLanguage('de');
+    expect(formatChance(0.46)).toBe('46\u00a0%');
+    setLanguage('es');
+    expect(t.daily.streak(1)).toBe('Racha: 1 día seguido');
+    expect(t.daily.streak(3)).toBe('Racha: 3 días seguidos');
+    setLanguage('ru');
+    expect(formatChance(0.46)).toBe('46%');
+    expect(formatAway(47 * 3600)).toBe('47 ч');
+    expect(formatAway(30 * 24 * 3600)).toBe('30 дней');
+    expect(formatAway(3 * 24 * 3600 + 5 * 3600)).toBe('3 дня');
+  });
+
   it('русские числа и падежи', () => {
     expect(t.daily.streak(1)).toBe('Серия: 1 день подряд');
     expect(t.daily.streak(3)).toBe('Серия: 3 дня подряд');

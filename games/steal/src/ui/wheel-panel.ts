@@ -30,6 +30,10 @@ export interface WheelPanelCallbacks {
 const SIZE = 280;
 const SPIN_MS = 4200;
 const TURN = Math.PI * 2;
+/** Радиус ступицы в центре колеса. */
+const HUB = 18;
+/** Размер шрифта подписей секторов: длинные подписи (в других языках) мельчают до min. */
+const LABEL_FONT = { max: 11, min: 8 } as const;
 
 /** Колесо удачи: сектора размером по шансам, бесплатный спин по таймеру и спины за рекламу. */
 export class WheelPanel {
@@ -175,14 +179,19 @@ export class WheelPanel {
       ctx.font = `${wide ? 22 : 16}px system-ui, sans-serif`;
       ctx.fillText(sector.icon, along(r - 22), 0);
       if (wide) {
-        ctx.font = '800 11px "Trebuchet MS", system-ui, sans-serif';
+        // подпись — между ступицей и значком; длинные (в других языках) — мельче, в крайнем случае — уже
+        const room = 2 * Math.min(r - 70 - HUB - 4, 36);
+        let size = LABEL_FONT.max;
+        do {
+          ctx.font = `800 ${size}px "Trebuchet MS", system-ui, sans-serif`;
+        } while (ctx.measureText(sector.label).width > room && --size >= LABEL_FONT.min);
         ctx.fillStyle = '#1a1c2c';
-        ctx.fillText(sector.label, along(r - 70), 0);
+        ctx.fillText(sector.label, along(r - 70), 0, room);
       }
       ctx.restore();
     });
     ctx.beginPath();
-    ctx.arc(c, c, 18, 0, TURN);
+    ctx.arc(c, c, HUB, 0, TURN);
     ctx.fillStyle = '#1a1c2c';
     ctx.fill();
     ctx.beginPath();

@@ -16,6 +16,8 @@ export const fr: Messages = {
     seconds: (value: string) => `${value}\u00a0s`,
     awayMinutes: (m: number) => `${m} min`,
     awayHours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
+    awayDays: (d: number) => `${d} ${days(d)}`,
+    percent: (value: string) => `${value}\u00a0%`,
     perSecond: (amount: string) => `+${amount}/s`,
   },
 
@@ -154,7 +156,7 @@ export const fr: Messages = {
       stashed: ['Hé hé, à moi\u00a0!', 'Belle prise\u00a0!'],
       levelUp: ['Je suis plus fort\u00a0!', 'Qui est le boss maintenant\u00a0?', 'Niveau supérieur\u00a0!'],
     },
-    stun: (name: string, seconds: string) => `${name}\u00a0: assommer ${seconds}`,
+    stun: (name: string, seconds: string) => `${name}\u00a0: assommer pendant ${seconds}`,
     shooDog: (dog: string) => `${dog}\u00a0: retour à la niche`,
     steal: (name: string) => `Voler ${q(name)}`,
     noRoom: 'pas de place dans ton sauna\u00a0: ouvre-en une',
@@ -207,8 +209,8 @@ export const fr: Messages = {
     names: { speed: 'Baskets', broom: 'Balai', latch: 'Verrou', stove: 'Poêle' },
     speedBase: 'vitesse normale',
     speed: (percent: string) => `vitesse +${percent}`,
-    broom: (stun: string, cooldown: string) => `assomme ${stun}, recharge ${cooldown}`,
-    latch: (seconds: string) => `verrouille le sauna ${seconds}`,
+    broom: (stun: string, cooldown: string) => `assomme pendant ${stun}, recharge ${cooldown}`,
+    latch: (seconds: string) => `verrouille le sauna pendant ${seconds}`,
     stoveBase: 'pas de bonus de revenu',
     stove: (percent: string) => `revenu +${percent}`,
     float: (icon: string, level: number) => `${icon} niv. ${level}`,
@@ -296,7 +298,7 @@ export const fr: Messages = {
     leadEnd: '), tes personnages ont transpiré et gagné\u00a0:',
     claim: 'Récupérer',
     ad: (coins: string) => `📺 Pub → ×2 (💰 ${coins})`,
-    note: (rate: number, share: number) => `Sans toi, les personnages rapportent ${rate}\u00a0% du revenu, mais pas plus de ${share}\u00a0% de tes pièces`,
+    note: (rate: string, share: string) => `Sans toi, les personnages rapportent ${rate} du revenu, mais pas plus de ${share} de tes pièces`,
     capped: '. Reviens plus souvent\u00a0!',
   },
 
@@ -313,7 +315,7 @@ export const fr: Messages = {
 
   rebirth: {
     title: '🔄 Renaissance',
-    reset: 'Repart de zéro',
+    reset: 'Remise à zéro',
     resetItems: ['pièces', 'personnages sur le banc', 'places sur le banc', 'améliorations', 'niveau des voisins'],
     keep: 'Reste pour toujours',
     keepItems: ['album', 'secrets', 'clés de caisses', 'cadeaux quotidiens', 'héros'],
@@ -340,7 +342,7 @@ export const fr: Messages = {
   landmarks: {
     stone: 'À gauche, tu trouveras une isba. À droite, tu chanteras avec l’ours. En arrière, tu voleras un brainrot',
     hutCreak: 'Cric-crac\u00a0!',
-    hutWelcome: 'Entre, sois mon invité\u00a0!',
+    hutWelcome: 'Entre, fais comme chez toi\u00a0!',
     bear: '♪ Hé, encore une fois\u00a0! ♪',
     well: ['Plouf\u00a0! ✨', 'Vœu fait ✨', 'Il se réalisera\u00a0! ✨'],
     toilet: ['Occupé\u00a0!', 'Occupé\u00a0! Qui est là\u00a0?!', 'Une petite minute\u00a0!'],
@@ -365,7 +367,7 @@ export const fr: Messages = {
     chestNow: (coins: string) => `En ce moment, ça fait 💰 ${coins}`,
     products: {
       income_x2: { name: 'Revenu ×2 pour toujours', description: 'Tous les personnages rapportent deux fois plus, même après une renaissance' },
-      no_ads: { name: 'Sans pub', description: 'Plus de pubs entre deux actions. Les vidéos à récompense restent, si tu le veux' },
+      no_ads: { name: 'Sans pub', description: 'Plus de pub plein écran ni de bannière. Les vidéos à récompense restent, si tu le veux' },
       coin_chest: { name: 'Coffre de pièces', description: 'Une demi-heure de revenu tout de suite' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} pièces\u00a0!`,

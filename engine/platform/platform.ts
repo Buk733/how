@@ -139,15 +139,23 @@ export interface PlatformOptions {
 }
 
 const SDK_URL = '/sdk.js';
-const SDK_TIMEOUT_MS = 5000;
+/** Сколько ждать SDK на медленной мобильной сети, прежде чем играть без площадки. */
+const SDK_TIMEOUT_MS = 10_000;
 
 /** Режим демо-сборки для артефакта (npm run artifact): без SDK, вместо рекламы и оплаты — табличка на полторы секунды. */
 const DEMO_MODE = 'demo';
 const DEMO_PREVIEW_MS = 1500;
 
+/** Демо-сборка или разработка: можно показывать демо-покупки, пример рейтинга и выбор языка. */
+export function isDemoBuild(): boolean {
+  return import.meta.env.DEV || import.meta.env.MODE === DEMO_MODE;
+}
+
 /**
  * Подключает Yandex Games SDK, если игра открыта на Яндекс Играх, иначе — локальную заглушку.
  * В режиме разработки (npm run dev) и в демо-сборке SDK не загружается вовсе.
+ * Если сборка для площадки не дождалась SDK, игра идёт локально, но без покупок и рейтинга:
+ * покупки — только через SDK, бесплатных «демо-покупок» в настоящей сборке быть не должно.
  */
 export async function initPlatform(options: PlatformOptions): Promise<Platform> {
   const { LocalPlatform } = await import('./local');
@@ -159,8 +167,8 @@ export async function initPlatform(options: PlatformOptions): Promise<Platform> 
     const { YandexPlatform } = await import('./yandex');
     return await YandexPlatform.create(window.YaGames, options);
   } catch (error) {
-    console.info('Yandex Games SDK недоступен, работаем локально:', error);
-    return new LocalPlatform(options);
+    console.info('Yandex Games SDK недоступен, работаем локально без покупок и рейтинга:', error);
+    return new LocalPlatform({ storageKey: options.storageKey }, { rewardedAds: false });
   }
 }
 

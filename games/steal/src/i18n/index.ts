@@ -56,17 +56,26 @@ export function formatSeconds(value: number): string {
   return t.units.seconds(formatDecimal(Math.round(value * 10) / 10));
 }
 
-/** «46%» или «2,5%» для маленьких шансов. */
+/** «46%» или «2,5%» для маленьких шансов; знак процента — как принято в языке («%46», «46 %»). */
 export function formatChance(chance: number): string {
   const percent = chance * 100;
   const value = percent >= 10 || Number.isInteger(percent) ? Math.round(percent) : Math.round(percent * 10) / 10;
-  return `${formatDecimal(value)}%`;
+  return t.units.percent(formatDecimal(value));
 }
 
-/** «2 ч 15 мин», «45 мин» — сколько игрока не было. */
+/** «+8%» в прокачке, «10%» в окне «С возвращением!»: целые проценты доли. */
+export function formatPercent(fraction: number): string {
+  return t.units.percent(String(Math.round(fraction * 100)));
+}
+
+/** Отлучки дольше двух суток — в днях. */
+const DAYS_FROM_HOURS = 48;
+
+/** «2 ч 15 мин», «45 мин», «3 дня» — сколько игрока не было. */
 export function formatAway(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
+  if (hours >= DAYS_FROM_HOURS) return t.units.awayDays(Math.floor(hours / 24));
   return hours === 0 ? t.units.awayMinutes(minutes) : t.units.awayHours(hours, minutes % 60);
 }
 

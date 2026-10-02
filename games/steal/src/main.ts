@@ -1,9 +1,9 @@
 import './style.css';
-import { initPlatform, type Platform } from '@engine/platform/platform';
+import { initPlatform, isDemoBuild, type Platform } from '@engine/platform/platform';
 import { LANGUAGE_KEY, LEADERBOARD, SAVE_KEY } from './config';
 import { PRODUCTS } from './data/shop';
 import { Game } from './game';
-import { pickLanguage, setLanguage, t, type Language } from './i18n';
+import { DICTIONARIES, pickLanguage, setLanguage, t, type Language } from './i18n';
 
 const container = document.querySelector<HTMLElement>('#app');
 if (!container) throw new Error('В index.html нет элемента #app');
@@ -15,7 +15,7 @@ const loading = document.querySelector<HTMLElement>('#loading');
  * или английский по правилу 2.10. В демо и при разработке — выбранный игроком, ?lang=… или язык браузера.
  */
 function chooseLanguage(platform: Platform): Language {
-  if (platform.kind !== 'local') return pickLanguage(platform.language);
+  if (!isDemoBuild()) return pickLanguage(platform.language);
   let saved: string | null = null;
   try {
     saved = window.localStorage.getItem(LANGUAGE_KEY);
@@ -26,6 +26,10 @@ function chooseLanguage(platform: Platform): Language {
 }
 
 async function main(root: HTMLElement): Promise<void> {
+  // пока площадка отвечает, «Загрузка…» — на языке браузера, а не только по-русски
+  const early = DICTIONARIES[pickLanguage(navigator.language || 'ru')];
+  document.title = early.title;
+  if (loading) loading.textContent = early.loading;
   const platform = await initPlatform({
     storageKey: SAVE_KEY,
     leaderboard: LEADERBOARD.name,

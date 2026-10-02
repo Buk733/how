@@ -29,6 +29,9 @@ export const ru = {
     seconds: (value: string) => `${value}\u00a0с`,
     awayMinutes: (m: number) => `${m} мин`,
     awayHours: (h: number, m: number) => (m > 0 ? `${h} ч ${m} мин` : `${h} ч`),
+    awayDays: (d: number) => `${d} ${plural(d, 'день', 'дня', 'дней')}`,
+    /** «46%». */
+    percent: (value: string) => `${value}%`,
     perSecond: (amount: string) => `+${amount}/с`,
   },
 
@@ -315,7 +318,7 @@ export const ru = {
     leadEnd: ', персонажи парились и напарили:',
     claim: 'Забрать',
     ad: (coins: string) => `📺 Реклама → ×2 (💰 ${coins})`,
-    note: (rate: number, share: number) => `Без тебя персонажи приносят ${rate}% дохода, но не больше ${share}% твоих монет`,
+    note: (rate: string, share: string) => `Без тебя персонажи приносят ${rate} дохода, но не больше ${share} твоих монет`,
     capped: ' — заходи почаще!',
   },
 

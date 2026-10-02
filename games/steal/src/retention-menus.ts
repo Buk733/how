@@ -9,7 +9,7 @@ import { CHARACTERS } from './data/characters';
 import { RARITIES } from './data/rarity';
 import { SECRETS } from './data/secrets';
 import { totalIncome } from './economy';
-import { formatAway, formatMultiplier, t } from './i18n';
+import { formatAway, formatMultiplier, formatPercent, t } from './i18n';
 import type { OfflineEarnings } from './offline';
 import { canRebirth, rebirthCost, rebirthMultiplier } from './rebirth';
 import { AlbumPanel } from './ui/album-panel';
@@ -72,7 +72,7 @@ export class RetentionMenus {
     this.welcome.show({
       away: formatAway(earned.away),
       coins: earned.coins,
-      note: t.welcome.note(Math.round(OFFLINE.rate * 100), Math.round(OFFLINE.maxShare * 100)) + (earned.capped ? t.welcome.capped : ''),
+      note: t.welcome.note(formatPercent(OFFLINE.rate), formatPercent(OFFLINE.maxShare)) + (earned.capped ? t.welcome.capped : ''),
     });
   }
 

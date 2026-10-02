@@ -15,6 +15,8 @@ export const pt: Messages = {
     seconds: (value: string) => `${value}\u00a0s`,
     awayMinutes: (m: number) => `${m} min`,
     awayHours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
+    awayDays: (d: number) => `${d} ${days(d)}`,
+    percent: (value: string) => `${value}%`,
     perSecond: (amount: string) => `+${amount}/s`,
   },
 
@@ -259,7 +261,7 @@ export const pt: Messages = {
   upgrader: {
     title: '♨️ Sala de Vapor',
     ok: 'sucesso',
-    hot: 'superaquece',
+    hot: 'superaquecimento',
     run: '♨️ Vaporizar!',
     give: 'Quem entra',
     get: 'No que se transforma',
@@ -280,7 +282,7 @@ export const pt: Messages = {
     title: '📅 Prêmios diários',
     claim: 'Pegar',
     hint: 'Entre todos os dias seguidos — até o sétimo dia os prêmios melhoram. Se pular um dia, a sequência recomeça.',
-    streak: (n: number) => `Sequência: ${n} ${days(n)} seguidos`,
+    streak: (n: number) => `Sequência: ${n} ${n === 1 ? 'dia seguido' : 'dias seguidos'}`,
     next: (time: string) => `Próximo prêmio em ${time}`,
     day: (day: number) => `Dia ${day}`,
     labels: ['Moedas', 'Caixa da Sauna', 'Muitas moedas', '×2 renda por 10 min', 'Caixa de Memes', 'Monte de moedas', 'Caixa Dourada'],
@@ -295,7 +297,7 @@ export const pt: Messages = {
     leadEnd: '), seus personagens suaram e ganharam:',
     claim: 'Pegar',
     ad: (coins: string) => `📺 Anúncio → ×2 (💰 ${coins})`,
-    note: (rate: number, share: number) => `Sem você, os personagens rendem ${rate}% da renda, mas não mais que ${share}% das suas moedas`,
+    note: (rate: string, share: string) => `Sem você, os personagens rendem ${rate} da renda, mas não mais que ${share} das suas moedas`,
     capped: ' — volte mais vezes!',
   },
 
@@ -312,7 +314,7 @@ export const pt: Messages = {
 
   rebirth: {
     title: '🔄 Renascer',
-    reset: 'Recomeça do zero',
+    reset: 'É zerado',
     resetItems: ['moedas', 'personagens no banco', 'lugares no banco', 'melhorias', 'nível dos vizinhos'],
     keep: 'Fica para sempre',
     keepItems: ['álbum', 'segredos', 'chaves de caixas', 'prêmios diários', 'herói'],
@@ -339,7 +341,7 @@ export const pt: Messages = {
   landmarks: {
     stone: 'Indo à esquerda, acha uma cabana. À direita, canta com um urso. Voltando, rouba um brainrot',
     hutCreak: 'Nheque-nheque!',
-    hutWelcome: 'Entre, seja meu convidado!',
+    hutWelcome: 'Entre, a casa é sua!',
     bear: '♪ Ei, mais uma vez! ♪',
     well: ['Tchibum! ✨', 'Pedido feito ✨', 'Vai se realizar! ✨'],
     toilet: ['Ocupado!', 'Ocupado! Quem é?!', 'Só um minutinho!'],
@@ -364,7 +366,7 @@ export const pt: Messages = {
     chestNow: (coins: string) => `Agora isso é 💰 ${coins}`,
     products: {
       income_x2: { name: 'Renda ×2 para sempre', description: 'Todos os personagens rendem o dobro — inclusive depois de renascer' },
-      no_ads: { name: 'Sem anúncios', description: 'Nada de anúncios entre as partidas. Vídeos com prêmio continuam — só se quiser' },
+      no_ads: { name: 'Sem anúncios', description: 'Sem anúncios em tela cheia nem banner. Vídeos com prêmio continuam — só se quiser' },
       coin_chest: { name: 'Baú de moedas', description: 'Meia hora da sua renda na hora' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} moedas!`,

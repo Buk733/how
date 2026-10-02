@@ -6,7 +6,7 @@ import { renderSongGradually } from '@engine/chiptune';
 import { formatNumber } from '@engine/format';
 import { Input } from '@engine/input';
 import { LabelLayer, type Label } from '@engine/labels';
-import type { Platform, ShopPurchase } from '@engine/platform/platform';
+import { isDemoBuild, type Platform, type ShopPurchase } from '@engine/platform/platform';
 import { Rng } from '@engine/rng';
 import type { SpriteSheet, SpriteSheetDef } from '@engine/sprite';
 import { Broom } from './broom';
@@ -291,7 +291,7 @@ export class Game implements GameContext {
     this.hud.setMusic(this.save.music);
     this.hud.setHero(spriteUrl(heroById(this.save.hero).sprite));
     // выбор языка — только в демо и при разработке: на площадке язык задаёт SDK
-    if (platform.kind === 'local') {
+    if (isDemoBuild()) {
       const languages = LANGUAGES.map((code) => ({ code, name: DICTIONARIES[code].languageName }));
       this.hud.showLanguages(languages, language, (code) => this.switchLanguage(code));
     }

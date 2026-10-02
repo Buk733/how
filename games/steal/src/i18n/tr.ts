@@ -15,6 +15,9 @@ export const tr: Messages = {
     seconds: (value: string) => `${value}\u00a0sn`,
     awayMinutes: (m: number) => `${m} dk`,
     awayHours: (h: number, m: number) => (m > 0 ? `${h} sa ${m} dk` : `${h} sa`),
+    awayDays: (d: number) => `${d} gün`,
+    /** Türkçede yüzde işareti sayının önünde: %46. */
+    percent: (value: string) => `%${value}`,
     perSecond: (amount: string) => `+${amount}/sn`,
   },
 
@@ -179,7 +182,7 @@ export const tr: Messages = {
     kicksOut: (name: string) => `${name} seni süpürgeyle kovalıyor!`,
     dogBites: (dog: string) => `${dog} ısırıyor! Süpürgeyle vur, kulübesine saklanır`,
     ding: 'Çın!',
-    robbed: (name: string, loot: string) => `${name} senden ${q(loot)} çaldı! Yakala ve süpürgeyle vur!`,
+    robbed: (name: string, loot: string) => `${name} senden çaldı: ${q(loot)}! Yakala ve süpürgeyle vur!`,
     lost: (loot: string, holder: string) => `${q(loot)} artık ${holder} — geri çal!`,
     seesYou: (name: string) => `${name} seni gördü!`,
     seesYouHint: ' Süpürgeyle vur — ya da kaç',
@@ -295,7 +298,7 @@ export const tr: Messages = {
     leadEnd: ') karakterlerin terleyip şunu kazandı:',
     claim: 'Al',
     ad: (coins: string) => `📺 Reklam → ×2 (💰 ${coins})`,
-    note: (rate: number, share: number) => `Sen yokken karakterler gelirinin %${rate} kadarını getirir — ama en fazla paranın %${share} kadarını`,
+    note: (rate: string, share: string) => `Sen yokken karakterler gelirinin ${rate} kadarını getirir — ama en fazla paranın ${share} kadarını`,
     capped: ' — daha sık gel!',
   },
 
@@ -364,7 +367,7 @@ export const tr: Messages = {
     chestNow: (coins: string) => `Şu an 💰 ${coins}`,
     products: {
       income_x2: { name: 'Kalıcı ×2 gelir', description: 'Tüm karakterler iki kat kazandırır — yeniden doğuştan sonra da' },
-      no_ads: { name: 'Reklamsız', description: 'Ara reklam yok. Ödüllü videolar kalır — yalnızca istersen' },
+      no_ads: { name: 'Reklamsız', description: 'Tam ekran reklam ve banner yok. Ödüllü videolar kalır — yalnızca istersen' },
       coin_chest: { name: 'Para sandığı', description: 'Yarım saatlik gelirin hemen' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} para!`,

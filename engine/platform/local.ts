@@ -24,6 +24,11 @@ export interface LocalPlatformOptions {
   readonly previewMs?: number;
   /** Хранилище вместо localStorage (тесты). */
   readonly storage?: StorageLike | null;
+  /**
+   * Реклама за награду «досматривается» сразу (разработка, демо). false — рекламы нет и награды за неё тоже:
+   * так ведёт себя сборка для площадки, которая не дождалась SDK.
+   */
+  readonly rewardedAds?: boolean;
 }
 
 /** Таблички по умолчанию, если игра не дала свои. */
@@ -47,6 +52,7 @@ export class LocalPlatform implements Platform {
   private readonly storage: StorageLike | null;
   private readonly storageKey: string;
   private readonly previewMs: number;
+  private readonly rewardedAds: boolean;
   private readonly texts: () => DemoTexts;
   private authorized = false;
 
@@ -54,6 +60,7 @@ export class LocalPlatform implements Platform {
     this.storageKey = options.storageKey;
     this.storage = local.storage === undefined ? browserStorage() : local.storage;
     this.previewMs = local.previewMs ?? 0;
+    this.rewardedAds = local.rewardedAds ?? true;
     this.texts = options.demoTexts ?? (() => DEFAULT_TEXTS);
     const payment = () => this.preview(this.texts().payment);
     this.payments = options.demoCatalog ? new LocalShop(options.demoCatalog, this.storage, `${options.storageKey}.purchases`, payment) : null;
@@ -78,6 +85,7 @@ export class LocalPlatform implements Platform {
   }
 
   async showRewardedAd(): Promise<boolean> {
+    if (!this.rewardedAds) return false;
     console.info('[реклама] за вознаграждение (заглушка) — награда выдана');
     await this.preview(this.texts().rewardedAd);
     return true;

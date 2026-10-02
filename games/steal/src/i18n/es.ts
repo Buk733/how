@@ -15,6 +15,8 @@ export const es: Messages = {
     seconds: (value: string) => `${value}\u00a0s`,
     awayMinutes: (m: number) => `${m} min`,
     awayHours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
+    awayDays: (d: number) => `${d} ${days(d)}`,
+    percent: (value: string) => `${value}\u00a0%`,
     perSecond: (amount: string) => `+${amount}/s`,
   },
 
@@ -46,7 +48,7 @@ export const es: Messages = {
 
   tutorial: {
     buyMe: '¡Cómprame!',
-    collect: 'Párate aquí para recoger monedas',
+    collect: 'Ponte aquí para recoger monedas',
     carryHome: '¡Llévalo a tu sauna!',
     steal: '¡Roba al vecino!',
     afterCollect: '¡Genial! Ahorra para personajes más caros',
@@ -153,7 +155,7 @@ export const es: Messages = {
       stashed: ['¡Je, je, mío!', '¡Buena pesca!'],
       levelUp: ['¡Soy más fuerte!', '¿Quién manda ahora?', '¡Subí de nivel!'],
     },
-    stun: (name: string, seconds: string) => `${name}: aturdir ${seconds}`,
+    stun: (name: string, seconds: string) => `${name}: aturdir durante ${seconds}`,
     shooDog: (dog: string) => `${dog}: mandarlo a la caseta`,
     steal: (name: string) => `Robar ${q(name)}`,
     noRoom: 'no hay sitio en tu sauna: abre uno nuevo',
@@ -206,8 +208,8 @@ export const es: Messages = {
     names: { speed: 'Zapatillas', broom: 'Escoba', latch: 'Cerrojo', stove: 'Estufa' },
     speedBase: 'velocidad normal',
     speed: (percent: string) => `velocidad +${percent}`,
-    broom: (stun: string, cooldown: string) => `aturde ${stun}, recarga ${cooldown}`,
-    latch: (seconds: string) => `cierra la sauna ${seconds}`,
+    broom: (stun: string, cooldown: string) => `aturde durante ${stun}, recarga ${cooldown}`,
+    latch: (seconds: string) => `cierra la sauna durante ${seconds}`,
     stoveBase: 'sin bonus de ingresos',
     stove: (percent: string) => `ingresos +${percent}`,
     float: (icon: string, level: number) => `${icon} nv. ${level}`,
@@ -259,7 +261,7 @@ export const es: Messages = {
   upgrader: {
     title: '♨️ Sala de Vapor',
     ok: 'éxito',
-    hot: 'sobrecalentón',
+    hot: 'demasiado calor',
     run: '♨️ ¡Al vapor!',
     give: 'Quién entra',
     get: 'En qué se convierte',
@@ -272,15 +274,15 @@ export const es: Messages = {
     chance: (chance: string) => `Probabilidad ${chance}`,
     pickBoth: 'Elige los dos personajes',
     success: (from: string, to: string) => `¡Lo lograste! ${q(from)} se convirtió en ${q(to)}`,
-    saved: (from: string) => `¡Sobrecalentón! El seguro salvó a ${q(from)}`,
-    lost: (from: string) => `¡Sobrecalentón! ${q(from)} se evaporó`,
+    saved: (from: string) => `¡Se sobrecalentó! El seguro salvó a ${q(from)}`,
+    lost: (from: string) => `¡Se sobrecalentó! ${q(from)} se evaporó`,
   },
 
   daily: {
     title: '📅 Premios diarios',
     claim: 'Recoger',
     hint: 'Entra cada día seguido: hacia el séptimo día los premios mejoran. Si te saltas un día, la racha empieza de nuevo.',
-    streak: (n: number) => `Racha: ${n} ${days(n)} seguidos`,
+    streak: (n: number) => `Racha: ${n} ${n === 1 ? 'día seguido' : 'días seguidos'}`,
     next: (time: string) => `Siguiente premio en ${time}`,
     day: (day: number) => `Día ${day}`,
     labels: ['Monedas', 'Caja de Sauna', 'Muchas monedas', '×2 ingresos 10 min', 'Caja de Memes', 'Montón de monedas', 'Caja Dorada'],
@@ -295,7 +297,7 @@ export const es: Messages = {
     leadEnd: '), tus personajes sudaron y ganaron:',
     claim: 'Recoger',
     ad: (coins: string) => `📺 Anuncio → ×2 (💰 ${coins})`,
-    note: (rate: number, share: number) => `Sin ti, los personajes ganan el ${rate}% de tus ingresos, pero no más del ${share}% de tus monedas`,
+    note: (rate: string, share: string) => `Sin ti, los personajes ganan el ${rate} de tus ingresos, pero no más del ${share} de tus monedas`,
     capped: ': ¡vuelve más a menudo!',
   },
 
@@ -312,7 +314,7 @@ export const es: Messages = {
 
   rebirth: {
     title: '🔄 Renacer',
-    reset: 'Empieza de cero',
+    reset: 'Se reinicia',
     resetItems: ['monedas', 'personajes del banco', 'sitios del banco', 'mejoras', 'nivel de los vecinos'],
     keep: 'Se queda para siempre',
     keepItems: ['álbum', 'secretos', 'llaves de cajas', 'premios diarios', 'héroe'],
@@ -339,7 +341,7 @@ export const es: Messages = {
   landmarks: {
     stone: 'Si vas a la izquierda, hallarás una cabaña. A la derecha, cantarás con un oso. Si vuelves atrás, robarás un brainrot',
     hutCreak: '¡Ñiic, ñiic!',
-    hutWelcome: '¡Pasa, eres mi invitado!',
+    hutWelcome: '¡Pasa, estás en tu casa!',
     bear: '♪ ¡Hey, otra vez! ♪',
     well: ['¡Chof! ✨', 'Deseo pedido ✨', '¡Se cumplirá! ✨'],
     toilet: ['¡Ocupado!', '¡Ocupado! ¿¡Quién es!?', '¡Un momentito!'],
@@ -364,7 +366,7 @@ export const es: Messages = {
     chestNow: (coins: string) => `Ahora mismo son 💰 ${coins}`,
     products: {
       income_x2: { name: 'Ingresos ×2 para siempre', description: 'Todos los personajes ganan el doble, también después de renacer' },
-      no_ads: { name: 'Sin anuncios', description: 'Nada de anuncios entre partidas. Los vídeos con premio siguen, solo si quieres' },
+      no_ads: { name: 'Sin anuncios', description: 'Sin anuncios a pantalla completa ni banner. Los vídeos con premio siguen, solo si quieres' },
       coin_chest: { name: 'Cofre de monedas', description: 'Media hora de tus ingresos al instante' },
     },
     granted: (icon: string, coins: string) => `¡${icon} +${coins} monedas!`,

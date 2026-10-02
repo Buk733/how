@@ -10,6 +10,8 @@ const root = fileURLToPath(new URL('../games/steal/', import.meta.url));
 const dist = join(root, 'dist');
 const output = join(root, 'release', 'steal.zip');
 const MAX_BYTES = 100 * 1024 * 1024;
+/** Дата файлов в архиве — 1 января 1980 (самая ранняя в формате ZIP): нулевая дата некорректна. */
+const ZIP_DATE = (0 << 9) | (1 << 5) | 1;
 /** Адреса, которые встречаются в коде Three.js как текст (пространство имён SVG, ссылка в комментарии), а не как запросы. */
 const ALLOWED_URLS = ['http://www.w3.org/1999/xhtml', 'http://www.w3.org/2000/svg', 'https://jcgt.org/published/0007/04/01/'];
 
@@ -53,7 +55,8 @@ for (const file of files) {
   header.writeUInt16LE(20, 4);
   header.writeUInt16LE(0x0800, 6); // имена в UTF-8
   header.writeUInt16LE(8, 8); // deflate
-  header.writeUInt32LE(0, 10); // время и дата не важны
+  header.writeUInt16LE(0, 10); // время не важно
+  header.writeUInt16LE(ZIP_DATE, 12);
   header.writeUInt32LE(crc, 14);
   header.writeUInt32LE(compressed.length, 18);
   header.writeUInt32LE(file.data.length, 22);
@@ -66,7 +69,8 @@ for (const file of files) {
   entry.writeUInt16LE(20, 6);
   entry.writeUInt16LE(0x0800, 8);
   entry.writeUInt16LE(8, 10);
-  entry.writeUInt32LE(0, 12);
+  entry.writeUInt16LE(0, 12);
+  entry.writeUInt16LE(ZIP_DATE, 14);
   entry.writeUInt32LE(crc, 16);
   entry.writeUInt32LE(compressed.length, 20);
   entry.writeUInt32LE(file.data.length, 24);
