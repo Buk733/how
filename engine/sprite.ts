@@ -19,11 +19,42 @@ export interface SpriteSheet extends SpriteSheetDef {
 }
 
 /**
+ * Глубина «стоячей фигуры» для вершинного шейдера билборда. Картинка повёрнута к камере, а камера
+ * смотрит сверху, поэтому в 3D билборд наклонён назад: его верх уходит за точку опоры — в скамейку,
+ * печь или стену за спиной персонажа, и они «съедают» голову и туловище. Картинка остаётся прежней,
+ * а в буфер глубины пишется глубина вертикальной карточки, стоящей в точке опоры: персонаж перед
+ * препятствием виден целиком, за ним — прячется, при любом повороте камеры.
+ * offsetY — высота угла над точкой опоры по экрану (в единицах камеры), mvPosition — сам угол.
+ */
+export function uprightDepthGlsl(offsetY: string): string {
+  return /* glsl */ `
+    {
+      vec3 worldUp = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+      // точка вертикальной карточки, которая видна на том же месте экрана: выше и ближе к камере
+      float lift = (${offsetY}) / max(worldUp.y, 0.2);
+      vec4 upright = projectionMatrix * vec4(mvPosition.xy, mvPosition.z + worldUp.z * lift, 1.0);
+      gl_Position.z = upright.z / upright.w * gl_Position.w;
+    }
+  `;
+}
+
+/** Материал спрайта с глубиной стоячей фигуры (uprightDepthGlsl). */
+function standUpright(material: THREE.SpriteMaterial): THREE.SpriteMaterial {
+  material.onBeforeCompile = (shader) => {
+    const anchor = 'gl_Position = projectionMatrix * mvPosition;';
+    if (!shader.vertexShader.includes(anchor)) throw new Error('Шейдер спрайта Three.js изменился: нет строки с gl_Position');
+    shader.vertexShader = shader.vertexShader.replace(anchor, `${anchor}\n${uprightDepthGlsl('rotatedPosition.y')}`);
+  };
+  material.customProgramCacheKey = () => 'upright-depth';
+  return material;
+}
+
+/**
  * «Вырезанный» материал: пиксель либо виден полностью, либо прозрачен.
  * Так спрайты правильно перекрывают друг друга без сортировки.
  */
 function cutoutMaterial(map: THREE.Texture): THREE.SpriteMaterial {
-  return new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false });
+  return standUpright(new THREE.SpriteMaterial({ map, alphaTest: 0.5, transparent: false }));
 }
 
 /** Копия текстуры листа со своим смещением кадра. Сама картинка при этом общая. */
@@ -78,7 +109,8 @@ export class BillboardSprite {
    */
   enableSilhouette(color: THREE.ColorRepresentation = '#1a1c2c', opacity = 0.45): void {
     if (this.silhouette) return;
-    const material = new THREE.SpriteMaterial({
+    // та же глубина, что у самого спрайта: иначе силуэт ляжет поверх собственной картинки
+    const material = standUpright(new THREE.SpriteMaterial({
       map: this.texture,
       color,
       opacity,
@@ -87,7 +119,7 @@ export class BillboardSprite {
       depthWrite: false,
       depthFunc: THREE.GreaterDepth,
       fog: false,
-    });
+    }));
     // Дочерний спрайт наследует масштаб родителя, поэтому свой масштаб — единичный.
     this.silhouette = new THREE.Sprite(material);
     this.silhouette.center.set(0.5, 0);

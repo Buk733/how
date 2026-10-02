@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { SpriteSheet } from './sprite';
+import { uprightDepthGlsl, type SpriteSheet } from './sprite';
 
 /** Один неподвижный спрайт в пачке: где стоит, какой кадр и насколько крупный. */
 export interface BatchItem {
@@ -16,7 +16,8 @@ export interface BatchItem {
   readonly flip?: boolean;
 }
 
-// Каждый угол сдвигается в пространстве камеры, как у THREE.Sprite: картинка всегда смотрит на камеру.
+// Каждый угол сдвигается в пространстве камеры, как у THREE.Sprite: картинка всегда смотрит на камеру,
+// а глубина — как у стоячей фигуры (uprightDepthGlsl), так же, как у BillboardSprite.
 const vertexShader = /* glsl */ `
   attribute vec2 corner;
   varying vec2 vUv;
@@ -26,6 +27,7 @@ const vertexShader = /* glsl */ `
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     mvPosition.xy += corner;
     gl_Position = projectionMatrix * mvPosition;
+    ${uprightDepthGlsl('corner.y')}
     #include <fog_vertex>
   }
 `;
