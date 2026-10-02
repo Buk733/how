@@ -13,6 +13,7 @@ import type { Home, RewardResult } from './home';
 import { characterNearTier, playerPower } from './neighbors';
 import type { OfflineEarnings } from './offline';
 import { RetentionMenus, type RetentionActions, type RetentionMenuId } from './retention-menus';
+import { ShopMenus, type ShopActions, type ShopMenuId, type ShopPlatform } from './shop-menus';
 import { describeRivals } from './rivals';
 import { CasePanel, type CaseCardView, type CaseResultView, type ReelItem } from './ui/case-panel';
 import { HeroPanel } from './ui/hero-panel';
@@ -30,14 +31,14 @@ const REEL_WINNER = 40;
 const REEL_LENGTH = 46;
 
 /** Что окна просят у игры. */
-export interface MenuActions extends RetentionActions {
+export interface MenuActions extends RetentionActions, ShopActions {
   /** Сменить героя. */
   pickHero(id: HeroId): void;
 }
 
 /**
- * Окна поверх игры: прокачка, кейсы, колесо удачи, парилка, выбор героя и окна удержания
- * (RetentionMenus). Открыто не больше одного; всплывающие сами (доход вне игры, награда за вход)
+ * Окна поверх игры: прокачка, кейсы, колесо удачи, парилка, выбор героя, окна удержания
+ * (RetentionMenus) и площадки — магазин и рейтинг (ShopMenus). Открыто не больше одного; всплывающие сами (доход вне игры, награда за вход)
  * ждут в очереди, пока игрок не закроет текущее. Награды выдаются, когда лента или колесо
  * остановились; если окно закрыли раньше или вкладку свернули — сразу (settle), чтобы ничего не пропало.
  */
@@ -51,6 +52,7 @@ export class Menus {
   private readonly upgrader: UpgraderPanel;
   private readonly hero: HeroPanel;
   private readonly retention: RetentionMenus;
+  private readonly store: ShopMenus;
   private readonly modals: Record<MenuId, Modal>;
   private current: MenuId | null = null;
   /** Окна, которые всплывут сами, когда игрок закроет текущее. */
@@ -62,7 +64,7 @@ export class Menus {
   private insured = false;
   private adBusy = false;
 
-  constructor(container: HTMLElement, ctx: GameContext, home: Home, actions: MenuActions) {
+  constructor(container: HTMLElement, ctx: GameContext, home: Home, platform: ShopPlatform, actions: MenuActions) {
     this.ctx = ctx;
     this.home = home;
     this.actions = actions;
@@ -97,6 +99,7 @@ export class Menus {
       close,
     );
     this.retention = new RetentionMenus(container, ctx, actions, close);
+    this.store = new ShopMenus(container, ctx, platform, actions, close);
     this.modals = {
       upgrades: this.upgrades.modal,
       cases: this.cases.modal,
@@ -104,7 +107,9 @@ export class Menus {
       upgrader: this.upgrader.modal,
       hero: this.hero.modal,
       ...this.retention.modals,
+      ...this.store.modals,
     };
+    for (const menu of ['shop', 'leaderboard'] as const) ctx.hud.setMenuVisible(menu, this.store.available(menu));
   }
 
   /** Какое окно открыто. */
@@ -112,8 +117,9 @@ export class Menus {
     return this.current;
   }
 
-  /** Открыть окно (или закрыть, если оно уже открыто). */
+  /** Открыть окно (или закрыть, если оно уже открыто). Окна, которого нет на площадке, не открываются. */
   toggle(menu: MenuId): void {
+    if ((menu === 'shop' || menu === 'leaderboard') && !this.store.available(menu)) return;
     if (this.current === menu) {
       this.close();
       return;
@@ -154,6 +160,7 @@ export class Menus {
     this.modals[menu].setOpen(true);
     if (menu === 'cases') this.cases.showShop();
     if (menu === 'upgrader') this.upgrader.resetHeat();
+    if (menu === 'shop' || menu === 'leaderboard') this.store.opened(menu);
     this.refresh();
   }
 
@@ -196,6 +203,10 @@ export class Menus {
         this.hero.render(
           HEROES.map((hero) => ({ ...hero, sheetUrl: spriteUrl(hero.sprite), selected: hero.id === this.ctx.save.hero })),
         );
+        break;
+      case 'shop':
+      case 'leaderboard':
+        this.store.refresh(this.current satisfies ShopMenuId);
         break;
       case null:
         break;

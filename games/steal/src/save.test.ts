@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOT, ECONOMY, NEIGHBORS, UPGRADES } from './config';
-import { createSave, parseSave } from './save';
+import { createSave, hasMoreProgress, newestSave, parseSave } from './save';
 
 const known = new Set(['panther', 'kotost']);
 
@@ -30,27 +30,28 @@ describe('parseSave', () => {
     save.hero = 'guy';
     save.music = false;
     save.tutorial = 3;
-    save.stats = { bought: 2, earned: 100, stolen: 1, lost: 0, opened: 5, upgraded: 1, peakIncome: 640 };
+    save.purchases = { owned: ['no_ads'], granted: ['token-1'] };
+    save.stats = { bought: 2, earned: 100, stolen: 1, lost: 0, opened: 5, upgraded: 1, peakIncome: 640, bestIncome: 1500 };
     expect(parseSave(JSON.parse(JSON.stringify(save)), known)).toEqual(save);
   });
 
   it('читает сохранение версии 1: соседей, прокачки и «Голды» ещё нет', () => {
     const v1 = { version: 1, coins: 300, unlocked: 4, slots: [{ id: 'kotost', stored: 3 }], tutorial: 2, muted: true, stats: { bought: 5, earned: 40 }, savedAt: 1 };
     const save = parseSave(v1, known);
-    expect(save.version).toBe(6);
+    expect(save.version).toBe(7);
     expect(save.coins).toBe(300);
     expect(save.slots[0]).toEqual({ id: 'kotost', gold: false, stored: 3 });
     expect(save.neighbors).toEqual([]);
     expect(save.upgrades).toEqual({ speed: 0, broom: 0, latch: 0, stove: 0 });
     expect(save.music).toBe(true);
     expect(save.tutorial).toBe(2);
-    expect(save.stats).toEqual({ bought: 5, earned: 40, stolen: 0, lost: 0, opened: 0, upgraded: 0, peakIncome: 0 });
+    expect(save.stats).toEqual({ bought: 5, earned: 40, stolen: 0, lost: 0, opened: 0, upgraded: 0, peakIncome: 0, bestIncome: 0 });
   });
 
   it('читает сохранение версии 3: у соседей были просто id, кейсов и таймеров ещё нет', () => {
     const neighbors = NEIGHBORS.map(() => ({ slots: ['panther', null, 'удалённый'] }));
     const save = parseSave({ version: 3, coins: 10, unlocked: 5, slots: [], neighbors, upgrades: { speed: 1 }, tutorial: 3 }, known);
-    expect(save.version).toBe(6);
+    expect(save.version).toBe(7);
     expect(save.neighbors[0].slots.slice(0, 3)).toEqual([{ id: 'panther', gold: false }, null, null]);
     expect(save.upgrades.speed).toBe(1);
     expect(save.keys).toEqual({});
@@ -60,7 +61,7 @@ describe('parseSave', () => {
 
   it('читает сохранение версии 4: пасхалок и лучшего дохода ещё нет', () => {
     const save = parseSave({ version: 4, coins: 10, slots: [], stats: { bought: 1 }, keys: { bath: 1 } }, known);
-    expect(save.version).toBe(6);
+    expect(save.version).toBe(7);
     expect(save.secrets).toEqual([]);
     expect(save.stats.peakIncome).toBe(0);
     expect(save.keys).toEqual({ bath: 1 });
@@ -69,7 +70,7 @@ describe('parseSave', () => {
   it('читает сохранение версии 5: героя, альбома, наград за вход и перерождений ещё нет', () => {
     const slots = [{ id: 'kotost', gold: true, stored: 1 }, { id: 'panther', stored: 2 }, { id: 'kotost', gold: true }];
     const save = parseSave({ version: 5, coins: 10, unlocked: 4, slots, secrets: ['hut'] }, known);
-    expect(save.version).toBe(6);
+    expect(save.version).toBe(7);
     expect(save.hero).toBe('girl');
     expect(save.secrets).toEqual(['hut']);
     // в альбом сразу попадают все, кто сидит на полке
@@ -123,6 +124,47 @@ describe('parseSave', () => {
     expect(save.adSpins).toEqual({ day: '', count: 0 });
     expect(save.boostUntil).toBe(0);
     expect(save.secrets).toEqual(['hut']);
-    expect(save.stats).toEqual({ bought: 3, earned: 0, stolen: 0, lost: 0, opened: 0, upgraded: 0, peakIncome: 0 });
+    expect(save.stats).toEqual({ bought: 3, earned: 0, stolen: 0, lost: 0, opened: 0, upgraded: 0, peakIncome: 0, bestIncome: 0 });
+  });
+
+  it('читает сохранение версии 6: покупок за Яны и лучшего дохода за всё время ещё нет', () => {
+    const save = parseSave({ version: 6, coins: 10, rebirths: 1, stats: { earned: 500, peakIncome: 30 } }, known);
+    expect(save.version).toBe(7);
+    expect(save.purchases).toEqual({ owned: [], granted: [] });
+    expect(save.stats.bestIncome).toBe(0);
+    expect(save.rebirths).toBe(1);
+  });
+
+  it('покупки: только известные постоянные товары, токены — строки и не больше запомненных', () => {
+    const granted = ['', 5, ...Array.from({ length: 60 }, (_, i) => `t${i}`)];
+    const save = parseSave({ version: 7, purchases: { owned: ['no_ads', 'no_ads', 'coin_chest', 'нет-такого', 3], granted } }, known);
+    expect(save.purchases.owned).toEqual(['no_ads']);
+    expect(save.purchases.granted).toHaveLength(50);
+    expect(save.purchases.granted.at(-1)).toBe('t59');
+    expect(parseSave({ version: 7, purchases: 'всё' }, known).purchases).toEqual({ owned: [], granted: [] });
+  });
+});
+
+describe('копии сохранения', () => {
+  const at = (savedAt: number, earned = 0) => {
+    const save = createSave();
+    save.savedAt = savedAt;
+    save.stats.earned = earned;
+    return save;
+  };
+
+  it('из облачной и локальной копии берётся свежая; при равенстве — облачная (первая)', () => {
+    expect(newestSave([at(5), at(9)]).savedAt).toBe(9);
+    expect(newestSave([at(9), at(5)]).savedAt).toBe(9);
+    const cloud = at(7);
+    expect(newestSave([cloud, at(7)])).toBe(cloud);
+    expect(newestSave([]).savedAt).toBe(0);
+  });
+
+  it('после входа сохранение из аккаунта берётся, только если в нём больше прогресса', () => {
+    expect(hasMoreProgress(at(10, 900), at(20, 500))).toBe(true);
+    expect(hasMoreProgress(at(10, 400), at(20, 500))).toBe(false);
+    // пустой аккаунт (ещё не сохранялись) — оставляем текущую игру
+    expect(hasMoreProgress(at(0, 0), at(20, 500))).toBe(false);
   });
 });

@@ -1,7 +1,8 @@
-import { BOT, ECONOMY, NEIGHBORS } from './config';
+import { BOT, ECONOMY, NEIGHBORS, SHOP } from './config';
 import { CASES } from './data/cases';
 import { DEFAULT_HERO, isHeroId, type HeroId } from './data/heroes';
 import { SECRET_IDS } from './data/secrets';
+import { productById } from './data/shop';
 import { createUpgradeLevels, maxLevel, UPGRADE_IDS, type UpgradeLevels } from './upgrades';
 
 /** Персонаж и его вариант: «Голда» — золотая версия с двойным доходом. */
@@ -25,7 +26,7 @@ export interface NeighborSave {
 
 /** Всё, что сохраняется между сессиями. При изменении формата — поднять version и дописать миграцию. */
 export interface SaveData {
-  version: 6;
+  version: 7;
   /** Кем игрок бегает по миру. */
   hero: HeroId;
   coins: number;
@@ -54,6 +55,11 @@ export interface SaveData {
   /** Сколько раз игрок перерождался: доход растёт навсегда (REBIRTH в config.ts). */
   rebirths: number;
   /**
+   * Покупки за Яны (data/shop.ts): owned — постоянные товары, granted — токены уже выданных
+   * расходуемых покупок, чтобы после сбоя не выдать одну покупку дважды.
+   */
+  purchases: { owned: string[]; granted: string[] };
+  /**
    * Шаг обучения: 0 — купить персонажа, 1 — собрать монеты,
    * 2 — украсть у соседа, 3 — пройдено.
    */
@@ -62,8 +68,11 @@ export interface SaveData {
   muted: boolean;
   /** Музыка включена (звуки при этом остаются). */
   music: boolean;
-  /** peakIncome — лучший доход без печи и ускорителя: по нему растут соседи. */
-  stats: { bought: number; earned: number; stolen: number; lost: number; opened: number; upgraded: number; peakIncome: number };
+  /**
+   * peakIncome — лучший доход без печи и ускорителя в этой жизни (до перерождения): по нему растут соседи;
+   * bestIncome — лучший доход в секунду за всё время (с печью, перерождениями и покупками): он в рекордах.
+   */
+  stats: { bought: number; earned: number; stolen: number; lost: number; opened: number; upgraded: number; peakIncome: number; bestIncome: number };
   savedAt: number;
 }
 
@@ -75,7 +84,7 @@ export function emptySlot(): SlotSave {
 
 export function createSave(): SaveData {
   return {
-    version: 6,
+    version: 7,
     hero: DEFAULT_HERO,
     coins: ECONOMY.startCoins,
     unlocked: ECONOMY.freeSlots,
@@ -91,10 +100,11 @@ export function createSave(): SaveData {
     collection: [],
     daily: { day: '', streak: 0 },
     rebirths: 0,
+    purchases: { owned: [], granted: [] },
     tutorial: 0,
     muted: false,
     music: true,
-    stats: { bought: 0, earned: 0, stolen: 0, lost: 0, opened: 0, upgraded: 0, peakIncome: 0 },
+    stats: { bought: 0, earned: 0, stolen: 0, lost: 0, opened: 0, upgraded: 0, peakIncome: 0, bestIncome: 0 },
     savedAt: 0,
   };
 }
@@ -117,12 +127,12 @@ function parseUnit(value: unknown, knownIds: ReadonlySet<string>): UnitSave | nu
  * Проверяет сохранение, пришедшее из хранилища. Всё сломанное или незнакомое
  * заменяется значениями по умолчанию, неизвестные персонажи убираются.
  * Понимает сохранения версий 1 (до соседей), 2 (до прокачки), 3 (до «Голды» и кейсов),
- * 4 (до пасхалок и прокачки соседей), 5 (до выбора героя) и 6.
+ * 4 (до пасхалок и прокачки соседей), 5 (до выбора героя), 6 (до покупок за Яны) и 7.
  */
 export function parseSave(raw: unknown, knownIds: ReadonlySet<string>): SaveData {
   const save = createSave();
   const data = record(raw);
-  if (!data || ![1, 2, 3, 4, 5, 6].includes(data.version as number)) return save;
+  if (!data || ![1, 2, 3, 4, 5, 6, 7].includes(data.version as number)) return save;
 
   if (isHeroId(data.hero)) save.hero = data.hero;
   save.coins = nonNegative(data.coins, save.coins);
@@ -180,5 +190,26 @@ export function parseSave(raw: unknown, knownIds: ReadonlySet<string>): SaveData
     save.daily = { day: daily.day, streak: Math.max(1, Math.floor(nonNegative(daily.streak, 1))) };
   }
   save.rebirths = Math.floor(nonNegative(data.rebirths, 0));
+  const purchases = record(data.purchases);
+  if (purchases) {
+    const owned = Array.isArray(purchases.owned) ? purchases.owned : [];
+    const permanent = (id: unknown): id is string => typeof id === 'string' && productById(id)?.kind === 'permanent';
+    save.purchases.owned = [...new Set(owned.filter(permanent))];
+    const granted = Array.isArray(purchases.granted) ? purchases.granted : [];
+    save.purchases.granted = granted.filter((token): token is string => typeof token === 'string' && token.length > 0).slice(-SHOP.rememberTokens);
+  }
   return save;
+}
+
+/** Самая свежая из копий (облачной и локальной): у кого позже savedAt; при равенстве — первая. */
+export function newestSave(copies: readonly SaveData[]): SaveData {
+  return copies.reduce((best, copy) => (copy.savedAt > best.savedAt ? copy : best), copies[0] ?? createSave());
+}
+
+/**
+ * У сохранения из аккаунта больше прогресса, чем у текущего (игрок вошёл с другого устройства):
+ * больше заработано за всё время.
+ */
+export function hasMoreProgress(account: SaveData, current: SaveData): boolean {
+  return account.savedAt > 0 && account.stats.earned > current.stats.earned;
 }

@@ -1,6 +1,7 @@
 // Правила экономики без графики — их легко тестировать.
-import { ECONOMY, GOLD } from './config';
+import { ECONOMY, GOLD, SHOP } from './config';
 import { characterById, type CharacterDef } from './data/characters';
+import { INCOME_X2 } from './data/shop';
 import { rebirthMultiplier } from './rebirth';
 import type { SaveData, SlotSave } from './save';
 import { incomeMultiplier } from './upgrades';
@@ -81,12 +82,22 @@ export function boostActive(save: SaveData, now: number): boolean {
   return now < save.boostUntil;
 }
 
-/** Во сколько раз больше приносят персонажи: печь, перерождения и ускоритель. */
-export function incomeFactor(save: SaveData, now: number): number {
-  return incomeMultiplier(save.upgrades) * rebirthMultiplier(save.rebirths) * (boostActive(save, now) ? 2 : 1);
+/** Покупка «Доход ×2 навсегда». */
+export function purchaseMultiplier(save: SaveData): number {
+  return save.purchases.owned.includes(INCOME_X2) ? SHOP.incomeFactor : 1;
 }
 
-/** Доход персонажей на полке без печи, перерождений и ускорителя — по нему растут соседи. */
+/** Множители навсегда: печь, перерождения и покупка «Доход ×2» (без ускорителя). */
+function steadyFactor(save: SaveData): number {
+  return incomeMultiplier(save.upgrades) * rebirthMultiplier(save.rebirths) * purchaseMultiplier(save);
+}
+
+/** Во сколько раз больше приносят персонажи: печь, перерождения, покупка «Доход ×2» и ускоритель. */
+export function incomeFactor(save: SaveData, now: number): number {
+  return steadyFactor(save) * (boostActive(save, now) ? 2 : 1);
+}
+
+/** Доход персонажей на полке без печи, перерождений, покупок и ускорителя — по нему растут соседи. */
 export function baseIncome(save: SaveData): number {
   return save.slots.reduce((sum, slot) => sum + slotIncome(slot), 0);
 }
@@ -96,9 +107,9 @@ export function totalIncome(save: SaveData, now = 0): number {
   return baseIncome(save) * incomeFactor(save, now);
 }
 
-/** Доход без ускорителя — с печью и перерождениями: столько игрок получает обычно (и вне игры). */
+/** Доход без ускорителя — с печью, перерождениями и покупкой «Доход ×2»: столько игрок получает обычно (и вне игры). */
 export function steadyIncome(save: SaveData): number {
-  return baseIncome(save) * incomeMultiplier(save.upgrades) * rebirthMultiplier(save.rebirths);
+  return baseIncome(save) * steadyFactor(save);
 }
 
 /** Сколько вернут за персонажа, которого заменили или продали. */

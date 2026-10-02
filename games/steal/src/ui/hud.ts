@@ -3,7 +3,7 @@ import { button, element, formatWait } from './dom';
 import { heroIcon } from './hero-panel';
 
 /** Окна: кнопками слева, круглой кнопкой героя справа и «С возвращением!», которое всплывает само. */
-export type MenuId = 'upgrades' | 'cases' | 'wheel' | 'upgrader' | 'daily' | 'album' | 'rebirth' | 'hero' | 'welcome';
+export type MenuId = 'upgrades' | 'cases' | 'wheel' | 'upgrader' | 'daily' | 'album' | 'rebirth' | 'leaderboard' | 'shop' | 'hero' | 'welcome';
 
 export interface HudCallbacks {
   onAction(): void;
@@ -28,6 +28,9 @@ const MENUS: readonly { readonly id: MenuId; readonly icon: string; readonly tex
   { id: 'upgrader', icon: '♨️', text: 'Парилка', key: 'P' },
   { id: 'daily', icon: '📅', text: 'Награды', key: 'N' },
   { id: 'album', icon: '📖', text: 'Альбом', key: 'C' },
+  { id: 'leaderboard', icon: '🏆', text: 'Рейтинг', key: 'T' },
+  { id: 'shop', icon: '🛒', text: 'Магазин', key: 'M' },
+  // последней: на узком экране последняя нечётная кнопка — во всю ширину, длинная подпись помещается
   { id: 'rebirth', icon: '🔄', text: 'Перерождение', key: 'R' },
 ];
 
@@ -128,7 +131,7 @@ export class Hud {
     this.boost.textContent = text;
   }
 
-  /** Множитель дохода от перерождений: «🔄 доход ×1,5 навсегда» (пусто — перерождений не было). */
+  /** Множители дохода навсегда: «🔄 ×1,5 · 💎 ×2 к доходу навсегда» (пусто — их нет). */
   setRebirth(text: string): void {
     if (this.rebirth.textContent === text) return;
     this.rebirth.textContent = text;
@@ -159,6 +162,12 @@ export class Hud {
   /** Отметка на кнопке окна: там есть что взять (бесплатный кейс, спин, доступная прокачка). */
   setMenuBadge(menu: MenuId, show: boolean): void {
     this.menus.get(menu)?.classList.toggle('has-offer', show);
+  }
+
+  /** Кнопку окна, которого нет на этой площадке (магазин, рейтинг), не показываем. */
+  setMenuVisible(menu: MenuId, visible: boolean): void {
+    const menuButton = this.menus.get(menu);
+    if (menuButton) menuButton.hidden = !visible;
   }
 
   setMuted(muted: boolean): void {

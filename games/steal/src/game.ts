@@ -3,9 +3,10 @@ import { loadPixelTexture, loadSpriteSheets, loadTileTexture } from '@engine/ass
 import { AudioManager } from '@engine/audio';
 import { FollowCamera } from '@engine/camera';
 import { renderSongGradually } from '@engine/chiptune';
+import { formatNumber } from '@engine/format';
 import { Input } from '@engine/input';
 import { LabelLayer, type Label } from '@engine/labels';
-import type { Platform } from '@engine/platform/platform';
+import type { Platform, ShopPurchase } from '@engine/platform/platform';
 import { Rng } from '@engine/rng';
 import type { SpriteSheet, SpriteSheetDef } from '@engine/sprite';
 import { Broom } from './broom';
@@ -15,9 +16,10 @@ import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, REBIRTH, RENDER_SHORT_SIDE, 
 import type { Action, GameContext, TutorialEvent } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
 import { heroById, type HeroId } from './data/heroes';
+import type { ProductId } from './data/shop';
 import { spriteUrl, textureUrl } from './data/sprites';
 import { dailyState } from './daily';
-import { baseIncome, totalIncome, unitName } from './economy';
+import { baseIncome, purchaseMultiplier, steadyIncome, totalIncome, unitName } from './economy';
 import { Effects } from './effects';
 import { Brainrot } from './entities/brainrot';
 import { Player } from './entities/player';
@@ -29,8 +31,10 @@ import { Neighborhood } from './neighborhood';
 import { offlineEarnings } from './offline';
 import { PORTAL_TEXTURES } from './portals';
 import { rebirth, rebirthMultiplier } from './rebirth';
+import { scoreToSend } from './records';
 import { formatMultiplier } from './retention-menus';
-import { parseSave, TUTORIAL_DONE, type SaveData } from './save';
+import { hasMoreProgress, newestSave, parseSave, TUTORIAL_DONE, type SaveData } from './save';
+import { adsDisabled, grantPurchase, needsConsume, type GrantResult } from './shop';
 import { Spawner } from './spawner';
 import { Hud, type MenuId } from './ui/hud';
 import { broomStun, speedMultiplier } from './upgrades';
@@ -58,6 +62,8 @@ const MENU_KEYS: Readonly<Record<string, MenuId>> = {
   KeyN: 'daily',
   KeyC: 'album',
   KeyR: 'rebirth',
+  KeyT: 'leaderboard',
+  KeyM: 'shop',
   KeyH: 'hero',
 };
 /** Как часто из-под ног бегущего героя вылетает облачко пыли, секунды. */
@@ -172,6 +178,15 @@ export class Game implements GameContext {
   private pausedByPlatform = false;
   /** Идёт реклама — игра и звук на паузе. */
   private adPlaying = false;
+  /** Открыто окно площадки (оплата, вход) — игра и звук на паузе. */
+  private platformDialog = false;
+  /** Игрок сейчас играет (для GameplayAPI): не пауза и не открыто окно. Площадке сообщаем только смену. */
+  private gameplayActive = false;
+  /** Страница перезагружается с сохранения из аккаунта — текущее больше не сохраняем. */
+  private reloading = false;
+  /** Таблица рекордов: какой результат и когда (performance.now, мс) отправили. */
+  private scoreSent = 0;
+  private scoreSentAt = -Infinity;
   private hidden = document.hidden;
   private dirty = false;
   private urgentSave = false;
@@ -196,7 +211,7 @@ export class Game implements GameContext {
         [`${c.id}:gold`, { url: c.goldSprite, frameWidth: 32, frameHeight: 32, pixelsPerUnit: CHARACTER_PPU }],
       ]),
     );
-    const [sheets, characterSheets, textures, raw] = await Promise.all([
+    const [sheets, characterSheets, textures, copies] = await Promise.all([
       loadSpriteSheets(SHEETS),
       loadSpriteSheets(characterDefs),
       loadTextures(),
@@ -209,7 +224,9 @@ export class Game implements GameContext {
         audio.load(id, url, { normalizeTo: AUDIO.normalizeTo }).catch((error) => console.warn(`Звук ${id} не загрузился:`, error)),
       ),
     );
-    const save = parseSave(raw, new Set(CHARACTERS.map((c) => c.id)));
+    // облачная и локальная копии: берём свежую (локальная новее, если облако не успело сохранить)
+    const ids = new Set(CHARACTERS.map((c) => c.id));
+    const save = newestSave([parseSave(copies.cloud, ids), parseSave(copies.local, ids)]);
     return new Game(container, platform, sheets, new Map(Object.entries(characterSheets)), textures, audio, save);
   }
 
@@ -231,6 +248,7 @@ export class Game implements GameContext {
     this.save = save;
     // лучший доход, по которому растут соседи, — не меньше того, что уже на полке
     save.stats.peakIncome = Math.max(save.stats.peakIncome, baseIncome(save));
+    save.stats.bestIncome = Math.max(save.stats.bestIncome, steadyIncome(save));
 
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
     container.append(this.renderer.domElement);
@@ -283,11 +301,13 @@ export class Game implements GameContext {
     this.broom = new Broom(this, sheets.broom);
     // доход вне игры считается до первого сохранения: оно перезапишет время savedAt
     const offline = offlineEarnings(save, Date.now());
-    this.menus = new Menus(container, this, this.home, {
+    this.menus = new Menus(container, this, this.home, platform, {
       showRewardedAd: () => this.showRewardedAd(),
       pickHero: (id) => this.pickHero(id),
       rebirth: () => this.rebirth(),
       rebirthBlocked: () => this.rebirthBlocked(),
+      buyProduct: (id) => this.buyProduct(id),
+      login: () => this.login(),
     });
     if (offline) this.menus.offerWelcome(offline);
     // награда за вход всплывает сама, когда обучение пройдено (в первые минуты — только отметка на кнопке)
@@ -306,7 +326,9 @@ export class Game implements GameContext {
 
   start(): void {
     this.renderer.setAnimationLoop(this.frame);
-    this.platform.gameplayStart();
+    this.syncGameplay();
+    if (adsDisabled(this.save)) this.platform.setBannerVisible(false);
+    void this.restorePurchases();
   }
 
   // ---------------------------------------------------------------- игровой цикл
@@ -338,6 +360,7 @@ export class Game implements GameContext {
     if (this.save.tutorial === 0 && !this.carpet.tutorialWalker) this.carpet.spawnTutorialWalker();
     // лучший доход растёт — соседи прокачиваются вслед за ним
     this.save.stats.peakIncome = Math.max(this.save.stats.peakIncome, baseIncome(this.save));
+    this.save.stats.bestIncome = Math.max(this.save.stats.bestIncome, steadyIncome(this.save));
 
     if (this.input.consumeAttack()) this.attack();
     const action: Action | null =
@@ -355,7 +378,7 @@ export class Game implements GameContext {
     const clock = Date.now();
     this.hud.setWallet(this.save.coins, totalIncome(this.save, clock));
     this.hud.setBoost(this.save.boostUntil - clock);
-    this.hud.setRebirth(this.save.rebirths > 0 ? `🔄 доход ${formatMultiplier(rebirthMultiplier(this.save.rebirths))} навсегда` : '');
+    this.hud.setRebirth(this.permanentText());
     this.hud.setBroom(this.broom.recharge, !this.neighborhood.isCarrying && !this.player.isStunned);
     // пока открыто окно, соседи не начинают новых набегов
     this.neighborhood.raidsPaused = this.menus.open !== null;
@@ -368,6 +391,8 @@ export class Game implements GameContext {
       this.rebirthAdAt = 0;
       void this.showFullscreenAd();
     }
+    this.syncGameplay();
+    void this.sendScore();
     this.maybeSave();
   }
 
@@ -454,8 +479,9 @@ export class Game implements GameContext {
 
   // ---------------------------------------------------------------- реклама
 
-  /** Полноэкранная реклама — только в логических паузах; на время показа игра и звук на паузе. */
+  /** Полноэкранная реклама — только в логических паузах (и не тем, кто купил «Без рекламы»); на время показа игра и звук на паузе. */
   private async showFullscreenAd(): Promise<void> {
+    if (adsDisabled(this.save)) return;
     this.adPlaying = true;
     this.applyPause();
     try {
@@ -638,12 +664,18 @@ export class Game implements GameContext {
   }
 
   private readonly flushSave = (): void => {
+    this.saveNow(false).catch((error: unknown) => console.warn('Не удалось сохранить прогресс:', error));
+  };
+
+  /** Сохранить сейчас; flush — дождаться отправки в облако (после покупки). */
+  private saveNow(flush: boolean): Promise<void> {
+    if (this.reloading) return Promise.resolve();
     this.dirty = false;
     this.urgentSave = false;
     this.lastSave = performance.now();
     this.save.savedAt = Date.now();
-    this.platform.saveData(this.save).catch((error) => console.warn('Не удалось сохранить прогресс:', error));
-  };
+    return this.platform.saveData(this.save, { flush });
+  }
 
   private toggleMute(): void {
     this.save.muted = !this.save.muted;
@@ -672,17 +704,141 @@ export class Game implements GameContext {
     this.flushSave();
   };
 
-  /** Игра стоит: площадка попросила паузу, идёт реклама или вкладка свёрнута. */
+  /** Игра стоит: площадка попросила паузу, идёт реклама, открыто окно оплаты или входа, вкладка свёрнута. */
   private get paused(): boolean {
-    return this.pausedByPlatform || this.adPlaying || this.hidden;
+    return this.pausedByPlatform || this.adPlaying || this.platformDialog || this.hidden;
   }
 
   private applyPause(): void {
-    const paused = this.paused;
-    this.audio.setPaused(paused);
-    if (paused) this.platform.gameplayStop();
-    else this.platform.gameplayStart();
+    this.audio.setPaused(this.paused);
+    this.syncGameplay();
     this.lastFrame = null;
+  }
+
+  /** GameplayAPI: «игрок играет» — не пауза и не открыто окно; площадке сообщаем только смену состояния. */
+  private syncGameplay(): void {
+    const active = !this.paused && this.menus.open === null;
+    if (active === this.gameplayActive) return;
+    this.gameplayActive = active;
+    if (active) this.platform.gameplayStart();
+    else this.platform.gameplayStop();
+  }
+
+  /** «🔄 ×1,5 · 💎 ×2 к доходу навсегда» — множители перерождений и покупки «Доход ×2». */
+  private permanentText(): string {
+    const parts: string[] = [];
+    if (this.save.rebirths > 0) parts.push(`🔄 ${formatMultiplier(rebirthMultiplier(this.save.rebirths))}`);
+    const bought = purchaseMultiplier(this.save);
+    if (bought > 1) parts.push(`💎 ${formatMultiplier(bought)}`);
+    return parts.length > 0 ? `${parts.join(' · ')} к доходу навсегда` : '';
+  }
+
+  // ---------------------------------------------------------------- покупки, вход, рекорды
+
+  /** Оплатить товар за Яны и выдать его. Пока открыто окно оплаты, игра и звук на паузе. */
+  private async buyProduct(id: ProductId): Promise<void> {
+    const payments = this.platform.payments;
+    if (!payments) return;
+    const purchase = await this.withPlatformDialog(() => payments.purchase(id));
+    if (purchase) await this.deliver(purchase);
+  }
+
+  /** При запуске: покупки, которые площадка ещё не отметила использованными, — постоянные и прерванные. */
+  private async restorePurchases(): Promise<void> {
+    const payments = this.platform.payments;
+    if (!payments) return;
+    let purchases: ShopPurchase[];
+    try {
+      purchases = await payments.getPurchases();
+    } catch (error) {
+      console.info('Покупки не загрузились:', error);
+      return;
+    }
+    for (const purchase of purchases) await this.deliver(purchase);
+  }
+
+  /**
+   * Выдаёт покупку, сохраняет с отправкой в облако и только потом отмечает расходуемую использованной.
+   * Если что-то сорвётся, покупка придёт снова при следующем запуске: не пропадёт и не выдастся дважды.
+   */
+  private async deliver(purchase: ShopPurchase): Promise<void> {
+    const result = grantPurchase(this.save, purchase);
+    if (result.kind === 'unknown') return;
+    // уже выданное (постоянный товар при каждом запуске, прерванная расходуемая) сохранять не нужно
+    if (result.kind === 'granted') {
+      this.celebratePurchase(result);
+      if (adsDisabled(this.save)) this.platform.setBannerVisible(false);
+      try {
+        await this.saveNow(true);
+      } catch (error) {
+        console.warn('Покупка выдана, но не сохранилась — придёт снова при следующем запуске:', error);
+        return;
+      }
+    }
+    if (!needsConsume(purchase.productId)) return;
+    await this.platform.payments?.consume(purchase.token).catch((error: unknown) => console.warn('Покупку не удалось отметить использованной:', error));
+  }
+
+  private celebratePurchase(result: Extract<GrantResult, { kind: 'granted' }>): void {
+    const { product, coins } = result;
+    this.hud.showBanner(coins > 0 ? `${product.icon} +${formatNumber(coins)} монет!` : `${product.icon} ${product.name}!`, '#ffcd75', 3600);
+    if (coins > 0) this.labels.float(`+${formatNumber(coins)}`, this.player.position.clone().setY(2.2), 'float-coins');
+    this.fx.sparkles(this.player.position, true);
+    this.audio.blip('win');
+  }
+
+  /**
+   * Вход в аккаунт. Если в аккаунте прогресса больше (играл на другом устройстве) — продолжаем с него.
+   * Пока идёт вход, игра на паузе; рекорд уходит до того, как окно рейтинга обновит таблицу.
+   */
+  private async login(): Promise<void> {
+    const loggedIn = await this.withPlatformDialog(async () => {
+      if (!(await this.platform.openAuth())) return false;
+      const account = parseSave((await this.platform.loadData()).cloud, new Set(CHARACTERS.map((c) => c.id)));
+      if (hasMoreProgress(account, this.save)) {
+        this.menus.close();
+        this.hud.showBanner('🔑 В аккаунте нашёлся прогресс побольше — загружаем его…', '#73eff7', 8000);
+        // сохранение из аккаунта становится свежим, а текущее больше не пишется: после перезагрузки выберется оно
+        account.savedAt = Date.now();
+        this.reloading = true;
+        await this.platform.saveData(account, { flush: true }).catch((error: unknown) => console.warn('Не удалось сохранить прогресс из аккаунта:', error));
+        window.location.reload();
+        return false;
+      }
+      await this.sendScore(true);
+      return true;
+    });
+    if (!loggedIn) return;
+    this.markDirty(true);
+    this.hud.showBanner('🔑 Готово! Теперь ты в рейтинге', '#a7f070', 3200);
+  }
+
+  /** Окно площадки (оплата, вход): пока оно открыто, игра и звук на паузе. */
+  private async withPlatformDialog<T>(run: () => Promise<T>): Promise<T> {
+    this.platformDialog = true;
+    this.applyPause();
+    try {
+      return await run();
+    } finally {
+      this.platformDialog = false;
+      this.applyPause();
+    }
+  }
+
+  /**
+   * Лучший доход — в таблицу рекордов: только для вошедших, когда заметно вырос, и не чаще интервала;
+   * now — сразу (после входа).
+   */
+  private async sendScore(now = false): Promise<void> {
+    const leaderboard = this.platform.leaderboard;
+    if (!leaderboard || !this.platform.isAuthorized()) return;
+    const time = performance.now();
+    const best = this.save.stats.bestIncome;
+    const score = now ? Math.floor(best) : scoreToSend(best, this.scoreSent, (time - this.scoreSentAt) / 1000);
+    if (score === null || score <= 0) return;
+    this.scoreSent = score;
+    this.scoreSentAt = time;
+    await leaderboard.setScore(score).catch((error: unknown) => console.info('Рекорд не отправился:', error));
   }
 
   private resize(): void {
