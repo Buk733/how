@@ -2,6 +2,7 @@
 import { ECONOMY, GOLD, SHOP } from './config';
 import { characterById, type CharacterDef } from './data/characters';
 import { INCOME_X2 } from './data/shop';
+import { t } from './i18n';
 import { rebirthMultiplier } from './rebirth';
 import type { SaveData, SlotSave } from './save';
 import { incomeMultiplier } from './upgrades';
@@ -33,7 +34,7 @@ export function unitPrice(def: CharacterDef, gold: boolean): number {
 
 /** Имя для текстов: «Хамам» или «Хамам · Голда». */
 export function unitName(def: CharacterDef, gold: boolean): string {
-  return gold ? `${def.name} · Голда` : def.name;
+  return gold ? t.gold.unit(def.name) : def.name;
 }
 
 /** Персонаж на месте полка (или null, если место пустое). */

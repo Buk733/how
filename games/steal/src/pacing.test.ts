@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { OFFLINE, REBIRTH } from './config';
 import { steadyIncome } from './economy';
-import { formatClock, MILESTONES, PacingSim, PLAYERS, type Milestone, type PacingPlayer } from './pacing';
+import { formatClock, MILESTONES, PacingSim, PLAYERS, type Milestone } from './pacing';
 
 // Темп прохождения по модели (pacing.ts): медиана вех по нескольким прохождениям с разным зерном.
 // Таблица целиком — `npm run pacing`. Меняете баланс — смотрите, остался ли темп в рамках.
@@ -91,21 +91,18 @@ describe('темп прохождения (модель)', () => {
     }
   });
 
-  it('доход вне игры за ночь — подарок, но перерождение без рекламы не приходит само', () => {
-    const night = (player: PacingPlayer, ad: boolean) =>
-      median(
-        SEEDS.map((seed) => {
-          const sim = new PacingSim(player, seed).run(30 * 60);
-          const income = steadyIncome(sim.save);
-          const coins = sim.away(16 * 3600, ad);
-          return coins / Math.max(1, income) / 60;
-        }),
-      );
-    // минуты дохода: rate × maxHours, с рекламой вдвое больше — меньше часа активной игры
-    expect(night(PLAYERS.casual, false)).toBeCloseTo(OFFLINE.rate * OFFLINE.maxHours * 60, 0);
-    expect(night(PLAYERS.casual, true)).toBeLessThan(60);
-    const coins = median(SEEDS.map((seed) => new PacingSim(PLAYERS.casual, seed).run(30 * 60).away(16 * 3600, false)));
-    expect(coins).toBeLessThan(REBIRTH.firstCost);
+  it('доход вне игры за ночь — подарок не больше доли монет, и перерождение без рекламы не приходит само', () => {
+    const nights = SEEDS.map((seed) => {
+      const sim = new PacingSim(PLAYERS.casual, seed).run(30 * 60);
+      const coins = sim.save.coins;
+      const income = steadyIncome(sim.save);
+      const earned = sim.away(16 * 3600, false);
+      return { coins, earned, minutes: earned / Math.max(1, income) / 60 };
+    });
+    for (const night of nights) expect(night.earned).toBeLessThanOrEqual(Math.floor(night.coins * OFFLINE.maxShare));
+    // с рекламой вдвое больше — всё равно меньше часа активной игры
+    expect(2 * median(nights.map((n) => n.minutes))).toBeLessThan(60);
+    expect(median(nights.map((n) => n.earned))).toBeLessThan(REBIRTH.firstCost);
   });
 
   it('с тем же зерном модель повторяется', () => {

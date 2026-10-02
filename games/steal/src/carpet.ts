@@ -7,6 +7,7 @@ import { RARITIES } from './data/rarity';
 import { checkPurchase, unitIncome, unitName, unitPrice } from './economy';
 import type { Brainrot } from './entities/brainrot';
 import type { Home } from './home';
+import { t } from './i18n';
 import { walkAlong, walkPoint } from './layout';
 import { tierOf } from './neighbors';
 import type { Spawner } from './spawner';
@@ -70,16 +71,16 @@ export class Carpet {
     if (!nearest) return null;
     const target = nearest;
     const price = unitPrice(target.def, target.gold);
-    const title = `Купить «${unitName(target.def, target.gold)}»`;
-    if (handsFull) return { view: { title, detail: 'руки заняты — отнеси добычу в баню', enabled: false }, run: () => {} };
+    const title = t.carpet.buy(unitName(target.def, target.gold));
+    if (handsFull) return { view: { title, detail: t.carpet.handsFull, enabled: false }, run: () => {} };
     const check = checkPurchase(this.ctx.save, target.def, target.gold);
     const detail = check.ok
       ? check.replaces
-        ? `💰 ${formatNumber(price)} · заменит «${unitName(check.replaces.def, check.replaces.gold)}»`
+        ? t.carpet.replaces(formatNumber(price), unitName(check.replaces.def, check.replaces.gold))
         : `💰 ${formatNumber(price)}`
       : check.reason === 'coins'
-        ? `нужно 💰 ${formatNumber(price)}`
-        : 'нет мест — открой новое';
+        ? t.carpet.need(formatNumber(price))
+        : t.carpet.noRoom;
     return { view: { title, detail, enabled: check.ok }, run: () => this.buy(target) };
   }
 
@@ -125,8 +126,8 @@ export class Carpet {
     const price = document.createElement('span');
     name.textContent = gold ? `✨ ${def.name}` : def.name;
     name.style.color = gold ? GOLD_COLOR : rarity.color;
-    rarityName.textContent = gold ? `${rarity.name} · Голда` : rarity.name;
-    price.textContent = `💰 ${formatNumber(unitPrice(def, gold))} · +${formatNumber(unitIncome(def, gold))}/с`;
+    rarityName.textContent = gold ? t.gold.rarity(rarity.name) : rarity.name;
+    price.textContent = `💰 ${formatNumber(unitPrice(def, gold))} · ${t.units.perSecond(formatNumber(unitIncome(def, gold)))}`;
     label.element.append(name, rarityName, price);
     walker.label = label;
     this.walkers.push(walker);
@@ -134,7 +135,7 @@ export class Carpet {
     if (!announce) return walker;
     const rare = tierOf(def.rarity) >= tierOf(AUDIO.musicFromRarity);
     if (gold || rare) {
-      const text = gold ? `На дорожке «Голда»: ${def.name}!` : `На дорожке ${rarity.name.toLowerCase()} «${def.name}»!`;
+      const text = gold ? t.carpet.goldOnCarpet(def.name) : t.carpet.rareOnCarpet(rarity.name, def.name);
       this.ctx.hud.showBanner(text, gold ? GOLD_COLOR : rarity.color, 3500);
       if (gold) this.ctx.audio.blip('gold');
     }

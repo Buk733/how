@@ -12,7 +12,7 @@ import type { SpriteSheet, SpriteSheetDef } from '@engine/sprite';
 import { Broom } from './broom';
 import { Carpet, RARE_THEME } from './carpet';
 import { addToCollection } from './collection';
-import { AUDIO, BROOM, CAMERA, CARPET, FOG, PLAYER, REBIRTH, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
+import { AUDIO, BROOM, CAMERA, CARPET, FOG, LANGUAGE_KEY, PLAYER, REBIRTH, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
 import type { Action, GameContext, TutorialEvent } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
 import { heroById, type HeroId } from './data/heroes';
@@ -24,6 +24,7 @@ import { Effects } from './effects';
 import { Brainrot } from './entities/brainrot';
 import { Player } from './entities/player';
 import { Home } from './home';
+import { DICTIONARIES, formatMultiplier, language, LANGUAGES, t } from './i18n';
 import { BEAR_TUNE_ID, Landmarks } from './landmarks';
 import { Menus } from './menus';
 import { BANYA_POLKA } from './music';
@@ -32,12 +33,12 @@ import { offlineEarnings } from './offline';
 import { PORTAL_TEXTURES } from './portals';
 import { rebirth, rebirthMultiplier } from './rebirth';
 import { scoreToSend } from './records';
-import { formatMultiplier } from './retention-menus';
 import { hasMoreProgress, newestSave, parseSave, TUTORIAL_DONE, type SaveData } from './save';
 import { adsDisabled, grantPurchase, needsConsume, type GrantResult } from './shop';
 import { Spawner } from './spawner';
 import { Hud, type MenuId } from './ui/hud';
 import { broomStun, speedMultiplier } from './upgrades';
+import { STOVE_TEXTURES } from './stove';
 import { VEHICLE_TEXTURES } from './vehicles';
 import { buildWorld, type World } from './world';
 import rareThemeUrl from './sounds/rare-theme.mp3';
@@ -91,10 +92,12 @@ const SHEETS = {
   // частицы и мелочи бани
   sparkle: sheet('sparkle', 8, 8, 16),
   plate: sheet('plate', 16, 16, 11),
-  steam: sheet('steam', 8, 8, 10),
-  smoke: sheet('smoke', 8, 8, 12),
+  puff: sheet('puff', 16, 16, 16),
   dust: sheet('dust', 8, 8, 18),
   bucket: sheet('bucket', 16, 16, 20),
+  tub: sheet('tub', 16, 16, 18),
+  stoveStones: sheet('stove-stones', 26, 16, 16),
+  wallDecor: sheet('wall-decor', 16, 16, 16),
   lantern: sheet('lantern', 10, 26),
   woodpile: sheet('woodpile', 24, 18),
   // лес и луга
@@ -131,9 +134,9 @@ const SHEETS = {
 type Sheets = Record<keyof typeof SHEETS, SpriteSheet>;
 
 /** Плитки: повторяются по полу и стенам. */
-const TILE_TEXTURES = ['grass', 'planks', 'logs', 'carpet', 'stone', 'water'] as const;
+const TILE_TEXTURES = ['grass', 'planks', 'logs', 'carpet', 'water', 'roof-shingles', 'roof-trim'] as const;
 /** Картинки на гранях объёмных моделей (машины, порталы): по одной на грань, без повтора. */
-const MODEL_TEXTURES = [...VEHICLE_TEXTURES, ...PORTAL_TEXTURES] as const;
+const MODEL_TEXTURES = [...VEHICLE_TEXTURES, ...PORTAL_TEXTURES, ...STOVE_TEXTURES] as const;
 type TextureName = (typeof TILE_TEXTURES)[number] | (typeof MODEL_TEXTURES)[number];
 
 async function loadTextures() {
@@ -287,6 +290,11 @@ export class Game implements GameContext {
     this.hud.setMuted(this.save.muted);
     this.hud.setMusic(this.save.music);
     this.hud.setHero(spriteUrl(heroById(this.save.hero).sprite));
+    // выбор языка — только в демо и при разработке: на площадке язык задаёт SDK
+    if (platform.kind === 'local') {
+      const languages = LANGUAGES.map((code) => ({ code, name: DICTIONARIES[code].languageName }));
+      this.hud.showLanguages(languages, language, (code) => this.switchLanguage(code));
+    }
 
     this.home = new Home(this, sheets.plate);
     this.landmarks = new Landmarks(this, sheets, textures);
@@ -412,7 +420,7 @@ export class Game implements GameContext {
   private attack(): void {
     if (this.player.isStunned) return;
     if (this.neighborhood.isCarrying) {
-      this.hud.showBanner('Руки заняты — сначала донеси добычу', '#ffcd75', 1500);
+      this.hud.showBanner(t.broom.handsFull, '#ffcd75', 1500);
       return;
     }
     if (!this.broom.ready) return;
@@ -427,8 +435,8 @@ export class Game implements GameContext {
     if (!target) return null;
     return {
       view: this.broom.ready
-        ? { title: 'Шлёпнуть веником', detail: target.detail, enabled: true }
-        : { title: 'Шлёпнуть веником', detail: 'веник перезаряжается…', enabled: false },
+        ? { title: t.hud.broom, detail: target.detail, enabled: true }
+        : { title: t.hud.broom, detail: t.broom.recharging, enabled: false },
       run: () => this.attack(),
     };
   }
@@ -446,12 +454,24 @@ export class Game implements GameContext {
     this.markDirty(true);
   }
 
+  /** Другой язык (демо и разработка): запоминаем, сохраняем прогресс и перезапускаем — интерфейс соберётся заново. */
+  private switchLanguage(code: string): void {
+    try {
+      window.localStorage.setItem(LANGUAGE_KEY, code);
+    } catch {
+      return;
+    }
+    void this.saveNow(true)
+      .catch((error: unknown) => console.warn('Не удалось сохранить прогресс:', error))
+      .finally(() => window.location.reload());
+  }
+
   // ---------------------------------------------------------------- перерождение
 
   /** Почему сейчас нельзя переродиться или null. */
   private rebirthBlocked(): string | null {
-    if (this.neighborhood.isCarrying) return 'Сначала донеси добычу до бани';
-    if (this.neighborhood.raidActive) return 'Сначала разберись с вором';
+    if (this.neighborhood.isCarrying) return t.rebirth.carrying;
+    if (this.neighborhood.raidActive) return t.rebirth.raid;
     return null;
   }
 
@@ -467,7 +487,7 @@ export class Game implements GameContext {
     this.home.clearShelf();
     this.neighborhood.restock();
     this.menus.close();
-    this.hud.showBanner(`🔄 Перерождение! Доход ${formatMultiplier(rebirthMultiplier(this.save.rebirths))} навсегда`, '#73eff7', 4200);
+    this.hud.showBanner(t.rebirth.done(formatMultiplier(rebirthMultiplier(this.save.rebirths))), '#73eff7', 4200);
     this.fx.sparkles(this.player.position, true);
     this.fx.shake(0.4);
     this.audio.blip('gold');
@@ -528,7 +548,7 @@ export class Game implements GameContext {
 
   collect(def: CharacterDef, gold: boolean, at: THREE.Vector3): void {
     if (!addToCollection(this.save, def, gold)) return;
-    this.labels.float(`📖 Новая карточка: ${unitName(def, gold)}`, at, 'float-album', 2000);
+    this.labels.float(t.album.newCard(unitName(def, gold)), at, 'float-album', 2000);
     this.markDirty(true);
   }
 
@@ -546,10 +566,10 @@ export class Game implements GameContext {
     if (event === 'bought' && step === 0) this.save.tutorial = 1;
     else if (event === 'collected' && step === 1) {
       this.save.tutorial = 2;
-      this.hud.showBanner('Отлично! Копи на персонажей подороже');
+      this.hud.showBanner(t.tutorial.afterCollect);
     } else if (event === 'stolen' && step === 2) {
       this.save.tutorial = TUTORIAL_DONE;
-      this.hud.showBanner('Соседи тоже будут красть — закрывай баню и бей воров веником!', '#ffcd75', 4500);
+      this.hud.showBanner(t.tutorial.afterSteal, '#ffcd75', 4500);
     } else return;
     this.updateTutorial();
     this.markDirty(true);
@@ -578,7 +598,7 @@ export class Game implements GameContext {
       case 0: {
         const walker = this.carpet.tutorialWalker;
         if (walker) {
-          text = 'Купи меня!';
+          text = t.tutorial.buyMe;
           target.set(walker.position.x, 3.1, walker.position.z);
         }
         break;
@@ -586,19 +606,19 @@ export class Game implements GameContext {
       case 1: {
         const slot = this.home.residents.findIndex((r) => r?.state === 'seated');
         if (slot >= 0) {
-          text = 'Встань сюда — собери монеты';
+          text = t.tutorial.collect;
           target.copy(this.home.platePosition(slot)).setY(1.6);
         }
         break;
       }
       case 2: {
         if (this.neighborhood.isCarrying) {
-          text = 'Неси в свою баню!';
+          text = t.tutorial.carryHome;
           target.copy(this.world.home.entrance).setY(2);
         } else if (this.home.seatedCount >= 2) {
           const victim = this.neighborhood.tutorialTarget();
           if (victim) {
-            text = 'Укради у соседа!';
+            text = t.tutorial.steal;
             target.set(victim.position.x, 3.3, victim.position.z);
           }
         }
@@ -730,7 +750,7 @@ export class Game implements GameContext {
     if (this.save.rebirths > 0) parts.push(`🔄 ${formatMultiplier(rebirthMultiplier(this.save.rebirths))}`);
     const bought = purchaseMultiplier(this.save);
     if (bought > 1) parts.push(`💎 ${formatMultiplier(bought)}`);
-    return parts.length > 0 ? `${parts.join(' · ')} к доходу навсегда` : '';
+    return parts.length > 0 ? t.hud.permanent(parts.join(' · ')) : '';
   }
 
   // ---------------------------------------------------------------- покупки, вход, рекорды
@@ -781,7 +801,7 @@ export class Game implements GameContext {
 
   private celebratePurchase(result: Extract<GrantResult, { kind: 'granted' }>): void {
     const { product, coins } = result;
-    this.hud.showBanner(coins > 0 ? `${product.icon} +${formatNumber(coins)} монет!` : `${product.icon} ${product.name}!`, '#ffcd75', 3600);
+    this.hud.showBanner(coins > 0 ? t.shop.granted(product.icon, formatNumber(coins)) : t.shop.grantedItem(product.icon, product.name), '#ffcd75', 3600);
     if (coins > 0) this.labels.float(`+${formatNumber(coins)}`, this.player.position.clone().setY(2.2), 'float-coins');
     this.fx.sparkles(this.player.position, true);
     this.audio.blip('win');
@@ -797,7 +817,7 @@ export class Game implements GameContext {
       const account = parseSave((await this.platform.loadData()).cloud, new Set(CHARACTERS.map((c) => c.id)));
       if (hasMoreProgress(account, this.save)) {
         this.menus.close();
-        this.hud.showBanner('🔑 В аккаунте нашёлся прогресс побольше — загружаем его…', '#73eff7', 8000);
+        this.hud.showBanner(t.leaderboard.accountProgress, '#73eff7', 8000);
         // сохранение из аккаунта становится свежим, а текущее больше не пишется: после перезагрузки выберется оно
         account.savedAt = Date.now();
         this.reloading = true;
@@ -810,7 +830,7 @@ export class Game implements GameContext {
     });
     if (!loggedIn) return;
     this.markDirty(true);
-    this.hud.showBanner('🔑 Готово! Теперь ты в рейтинге', '#a7f070', 3200);
+    this.hud.showBanner(t.leaderboard.loggedIn, '#a7f070', 3200);
   }
 
   /** Окно площадки (оплата, вход): пока оно открыто, игра и звук на паузе. */

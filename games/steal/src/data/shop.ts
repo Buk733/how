@@ -2,12 +2,15 @@
 // (кейсы, колесо и парилка — только за монеты). Товары с такими же id заводятся в Консоли разработчика:
 // там их название, описание, картинка и цена; игра показывает свои названия, а цену и значок валюты — из каталога.
 
+import { t } from '../i18n';
+
 export type ProductId = 'income_x2' | 'no_ads' | 'coin_chest';
 
 export interface ProductDef {
   /** Латиница: так товар называется в Консоли и хранится в сохранении. Не менять после релиза. */
   readonly id: ProductId;
   readonly icon: string;
+  /** Название и описание на языке игры (i18n: shop.products). */
   readonly name: string;
   readonly description: string;
   /**
@@ -26,32 +29,21 @@ export const NO_ADS: ProductId = 'no_ads';
 /** Сундук монет: SHOP.chestMinutes минут дохода сразу. */
 export const COIN_CHEST: ProductId = 'coin_chest';
 
-export const PRODUCTS: readonly ProductDef[] = [
-  {
-    id: INCOME_X2,
-    icon: '💎',
-    name: 'Доход ×2 навсегда',
-    description: 'Все персонажи приносят вдвое больше — и после перерождения тоже',
-    kind: 'permanent',
-    demoPrice: 199,
+export const PRODUCTS: readonly ProductDef[] = (
+  [
+    { id: INCOME_X2, icon: '💎', kind: 'permanent', demoPrice: 199 },
+    { id: NO_ADS, icon: '🚫', kind: 'permanent', demoPrice: 149 },
+    { id: COIN_CHEST, icon: '💰', kind: 'consumable', demoPrice: 49 },
+  ] satisfies Omit<ProductDef, 'name' | 'description'>[]
+).map((product) => ({
+  ...product,
+  get name() {
+    return t.shop.products[product.id].name;
   },
-  {
-    id: NO_ADS,
-    icon: '🚫',
-    name: 'Без рекламы',
-    description: 'Никакой рекламы между делом. Ролики за награду остаются — по желанию',
-    kind: 'permanent',
-    demoPrice: 149,
+  get description() {
+    return t.shop.products[product.id].description;
   },
-  {
-    id: COIN_CHEST,
-    icon: '💰',
-    name: 'Сундук монет',
-    description: 'Полчаса твоего дохода сразу',
-    kind: 'consumable',
-    demoPrice: 49,
-  },
-];
+}));
 
 const byId = new Map<string, ProductDef>(PRODUCTS.map((p) => [p.id, p]));
 

@@ -64,8 +64,8 @@ export interface ScenerySheets {
   readonly duck: SpriteSheet;
   readonly bird: SpriteSheet;
   readonly butterfly: SpriteSheet;
-  /** Дым из труб и выхлопа трактора. */
-  readonly smoke: SpriteSheet;
+  /** Мягкие клубы: выхлоп трактора. */
+  readonly puff: SpriteSheet;
 }
 
 /** Как добавлять неподвижный декор: в общую пачку мира, с тенью и препятствием. */
@@ -318,7 +318,7 @@ export function buildScenery(scene: THREE.Scene, sheets: ScenerySheets, textures
   // ---------------------------------------------------------------- южный край: забор, дорога, остановка
   for (let x = GROUND.minX + 1; x <= GROUND.maxX - 1; x += 2) add(sheets.fence, { x, z: SOUTH.fenceZ });
   add(sheets.busStop, BUS_STOP, 2);
-  animated.push(createTraffic(scene, textures, sheets.smoke, rng));
+  animated.push(createTraffic(scene, textures, sheets.puff, rng));
 
   // ---------------------------------------------------------------- птицы и бабочки
   animated.push(createBirds(scene, sheets.bird, rng));

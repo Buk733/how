@@ -1,8 +1,10 @@
+import { caseName } from '../i18n';
 import type { Rarity } from './rarity';
 
 export interface CaseDef {
   /** Латиница: по нему хранятся ключи в сохранении. Не менять после релиза. */
   readonly id: string;
+  /** Название на языке игры (i18n: cases.names). */
   readonly name: string;
   readonly icon: string;
   /** Цена в монетах. */
@@ -20,12 +22,19 @@ export interface CaseDef {
  * Цены подобраны так, что средняя ценность выпадения — 75–80% цены (проверяет тест): кейс — развлечение,
  * а не заработок. Меняются цены персонажей — пересчитать и цены кейсов.
  */
-export const CASES: readonly CaseDef[] = [
-  { id: 'bath', name: 'Банный кейс', icon: '🪣', price: 1_000, odds: { common: 0.72, rare: 0.24, epic: 0.04 }, gold: 0.03, color: '#94b0c2' },
-  { id: 'meme', name: 'Мемный кейс', icon: '🎭', price: 25_000, odds: { rare: 0.6, epic: 0.33, legendary: 0.07 }, gold: 0.05, color: '#41a6f6' },
-  { id: 'gold', name: 'Золотой кейс', icon: '👑', price: 350_000, odds: { epic: 0.5, legendary: 0.42, mythic: 0.08 }, gold: 0.12, color: '#ffcd75' },
-  { id: 'mellstroy', name: 'Кейс Меллстроя', icon: '💎', price: 1_250_000, odds: { legendary: 0.65, mythic: 0.35 }, gold: 0.2, color: '#ff6b6b' },
-];
+export const CASES: readonly CaseDef[] = (
+  [
+    { id: 'bath', icon: '🪣', price: 1_000, odds: { common: 0.72, rare: 0.24, epic: 0.04 }, gold: 0.03, color: '#94b0c2' },
+    { id: 'meme', icon: '🎭', price: 25_000, odds: { rare: 0.6, epic: 0.33, legendary: 0.07 }, gold: 0.05, color: '#41a6f6' },
+    { id: 'gold', icon: '👑', price: 350_000, odds: { epic: 0.5, legendary: 0.42, mythic: 0.08 }, gold: 0.12, color: '#ffcd75' },
+    { id: 'mellstroy', icon: '💎', price: 1_250_000, odds: { legendary: 0.65, mythic: 0.35 }, gold: 0.2, color: '#ff6b6b' },
+  ] satisfies Omit<CaseDef, 'name'>[]
+).map((box) => ({
+  ...box,
+  get name() {
+    return caseName(box.id);
+  },
+}));
 
 /** Бесплатный кейс по таймеру — самый дешёвый. */
 export const FREE_CASE_ID = 'bath';

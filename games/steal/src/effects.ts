@@ -2,13 +2,14 @@ import * as THREE from 'three';
 import type { FollowCamera } from '@engine/camera';
 import type { LabelLayer } from '@engine/labels';
 import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
+import { PuffPool, type PuffLook } from './puffs';
 import type { Hud } from './ui/hud';
 
 /** Картинки частиц. */
 export interface EffectSheets {
   readonly sparkle: SpriteSheet;
   readonly dust: SpriteSheet;
-  readonly steam: SpriteSheet;
+  readonly puff: SpriteSheet;
 }
 
 interface Particle {
@@ -24,6 +25,8 @@ interface Particle {
 
 const SPARKLE_FRAMES = [0, 1, 2, 2, 1, 0];
 const PUFF_FRAMES = [0, 1, 2];
+/** Большой клуб пара, когда печь «поддаёт». */
+const STEAM_BURST: PuffLook = { color: '#ffffff', opacity: 0.7, size: [0.7, 2.2] };
 
 /** Пул одинаковых частиц: спрайты создаются один раз и переиспользуются. */
 class ParticlePool {
@@ -76,7 +79,7 @@ class ParticlePool {
 export class Effects {
   private readonly sparklePool: ParticlePool;
   private readonly dustPool: ParticlePool;
-  private readonly steamPool: ParticlePool;
+  private readonly steamPool: PuffPool;
   private readonly labels: LabelLayer;
   private readonly hud: Hud;
   private readonly camera: FollowCamera;
@@ -85,7 +88,7 @@ export class Effects {
   constructor(scene: THREE.Scene, sheets: EffectSheets, labels: LabelLayer, hud: Hud, camera: FollowCamera) {
     this.sparklePool = new ParticlePool(scene, sheets.sparkle, 32);
     this.dustPool = new ParticlePool(scene, sheets.dust, 14);
-    this.steamPool = new ParticlePool(scene, sheets.steam, 16);
+    this.steamPool = new PuffPool(scene, sheets.puff, 16);
     this.labels = labels;
     this.hud = hud;
     this.camera = camera;
@@ -122,9 +125,9 @@ export class Effects {
   /** Большой клуб пара (печь «поддаёт»); driftX — куда его несёт (от печи к полку). */
   steam(at: THREE.Vector3, spread = 3, driftX = 0): void {
     for (let i = 0; i < 12; i++) {
-      this.scratch.set(driftX + (Math.random() - 0.5) * spread, 0.5 + Math.random() * 0.6, (Math.random() - 0.3) * 0.8);
+      this.scratch.set(driftX + (Math.random() - 0.5) * spread, 0.8 + Math.random() * 0.9, (Math.random() - 0.3) * 0.8);
       const start = at.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.6, Math.random() * 0.4, 0));
-      this.steamPool.emit(start, this.scratch, 1.4 + Math.random() * 0.8, PUFF_FRAMES);
+      this.steamPool.emit(start, this.scratch, 1.8 + Math.random() * 0.9, STEAM_BURST);
     }
   }
 

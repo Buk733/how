@@ -1,4 +1,4 @@
-// Текстуры мира (тайлы) и мелкий декор: трава, доски, брёвна, ковёр, камень, плиты сбора, монета, пар, блёстки, ведро.
+// Текстуры мира (тайлы) и мелкий декор: трава, доски, брёвна, ковёр, плиты сбора, монета, блёстки, ведро.
 import { C, Img, sheet, rng } from './lib.mjs';
 
 /** Бесшовная трава 32×32. */
@@ -81,23 +81,6 @@ export function carpet() {
   return img;
 }
 
-/** Каменная кладка печи 32×32. */
-export function stone() {
-  const S = 32;
-  const img = new Img(S, S);
-  const rand = rng(8);
-  for (let y = 0; y < S; y++)
-    for (let x = 0; x < S; x++) {
-      const row = Math.floor(y / 8);
-      const offset = row % 2 ? 8 : 0;
-      let c = rand() < 0.5 ? C.silver : '#8aa3b6';
-      if (y % 8 === 7 || (x + offset) % 16 === 15) c = C.shadow;
-      else if (y % 8 === 0) c = '#b7c9d6';
-      img.set(x, y, c);
-    }
-  return img;
-}
-
 /** Плита сбора монет 16×16, 3 кадра: закрыто, пусто, есть монеты. */
 export function plate() {
   const s = sheet(16, 16, 4);
@@ -138,16 +121,6 @@ export function coin() {
       return C.yellow;
     });
     f.outline(C.plum);
-  });
-  return s.img;
-}
-
-/** Облачко пара: 3 кадра 8×8. */
-export function steam() {
-  const s = sheet(8, 8, 3);
-  [2, 3, 3.6].forEach((r, i) => {
-    const f = s.frame(i);
-    f.ellipse(4, 4, r, r, (nx, ny) => (nx > 0.3 && ny > 0.3 ? '#c3d3e6' : C.white));
   });
   return s.img;
 }

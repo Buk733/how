@@ -10,6 +10,7 @@ import { findSlotFor, incomeFactor, sellValue, unitIncome, unlockCost, type Slot
 import type { Brainrot } from './entities/brainrot';
 import { SpeechBubble } from './entities/bubble';
 import { Plate } from './entities/plate';
+import { t } from './i18n';
 import { pickRaidTarget } from './neighbors';
 import { latchDuration } from './upgrades';
 
@@ -45,7 +46,7 @@ export class Home {
     this.steamTimer = ctx.rng.range(...STEAM_INTERVAL);
     const layout = ctx.world.home;
     const sign = ctx.labels.create('world-sign');
-    sign.element.textContent = 'ТВОЯ БАНЯ';
+    sign.element.textContent = t.home.sign;
     sign.anchor.copy(layout.signAnchor);
 
     this.plates = layout.plates.map((position) => {
@@ -112,7 +113,7 @@ export class Home {
 
     const locked = this.locked;
     this.ctx.world.home.barrier.visible = locked;
-    this.lockPlate.setText(locked ? `🔒 ${Math.ceil(this.lockedUntil - this.ctx.time)} с` : '🔓 Щеколда');
+    this.lockPlate.setText(locked ? t.home.latchLeft(Math.ceil(this.lockedUntil - this.ctx.time)) : t.home.latch);
     this.updateChatter(dt);
     this.updateSteam(dt);
   }
@@ -148,7 +149,7 @@ export class Home {
     const seated = this.residents.filter((r): r is Brainrot => r?.state === 'seated');
     if (seated.length === 0) return;
     this.chatterFrom = seated[rng.int(0, seated.length)];
-    this.chatter.say(['💦 Кайф!', 'Ух, парок!', 'С лёгким паром!'], 2.2);
+    this.chatter.say(t.home.chatter, 2.2);
     this.chatterTimer = Math.max(this.chatterTimer, 3);
   }
 
@@ -158,8 +159,8 @@ export class Home {
       const locked = this.locked;
       return {
         view: locked
-          ? { title: 'Баня закрыта', detail: `ещё ${Math.ceil(this.lockedUntil - this.ctx.time)} с`, enabled: false }
-          : { title: 'Закрыть баню', detail: `на ${latchDuration(this.ctx.save.upgrades)} с — воры не войдут`, enabled: true },
+          ? { title: t.home.closedTitle, detail: t.home.closedLeft(Math.ceil(this.lockedUntil - this.ctx.time)), enabled: false }
+          : { title: t.home.closeTitle, detail: t.home.closeDetail(latchDuration(this.ctx.save.upgrades)), enabled: true },
         run: () => this.lock(),
       };
     }
@@ -167,7 +168,7 @@ export class Home {
     const cost = unlockCost(next);
     if (cost !== null && distanceXZ(player.position, this.plates[next].mesh.position) < PLATE_RADIUS + 0.3) {
       return {
-        view: { title: 'Открыть место', detail: `💰 ${formatNumber(cost)}`, enabled: save.coins >= cost },
+        view: { title: t.home.unlockTitle, detail: `💰 ${formatNumber(cost)}`, enabled: save.coins >= cost },
         run: () => this.unlockSlot(next, cost),
       };
     }
@@ -306,7 +307,7 @@ export class Home {
   private lock(): void {
     this.lockedUntil = this.ctx.time + latchDuration(this.ctx.save.upgrades);
     this.ctx.audio.blip('unlock');
-    this.ctx.hud.showBanner('Баня закрыта на щеколду!', '#ff6b6b');
+    this.ctx.hud.showBanner(t.home.latched, '#ff6b6b');
   }
 
   /** Путь до места: через вход (если снаружи), к плите, потом на полок. */
@@ -341,7 +342,7 @@ export class Home {
     save.coins -= cost;
     save.unlocked++;
     this.ctx.audio.blip('unlock');
-    this.ctx.hud.showBanner('Новое место на полке!', '#a7f070');
+    this.ctx.hud.showBanner(t.home.newSlot, '#a7f070');
     this.ctx.markDirty(true);
   }
 }

@@ -4,9 +4,10 @@ import * as THREE from 'three';
 import { BoxModel, type Vec3 } from '@engine/boxes';
 import type { Rng } from '@engine/rng';
 import { createBlobShadow } from '@engine/shadow';
-import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
+import type { SpriteSheet } from '@engine/sprite';
 import { PIXELS_PER_UNIT } from './config';
 import { GROUND, roadZ } from './layout';
+import { PuffPool, type PuffLook } from './puffs';
 
 /** Картинки граней машин: textures/<имя>.png. */
 export const VEHICLE_TEXTURES = [
@@ -335,41 +336,29 @@ interface Traveller {
   travelled: number;
 }
 
-/** Клубы дыма из трубы трактора: остаются там, где вылетели, растут и поднимаются. */
+/** Сизый выхлоп трактора. */
+const EXHAUST: PuffLook = { color: '#7d8494', opacity: 0.6, size: [0.3, 1] };
+
+/** Клубы дыма из трубы трактора: остаются там, где вылетели, растут, поднимаются и тают. */
 class Exhaust {
-  private readonly puffs: { sprite: BillboardSprite; age: number }[] = [];
+  private readonly pool: PuffPool;
   private timer = 0;
-  private next = 0;
   private readonly spot = new THREE.Vector3();
+  private readonly rise = new THREE.Vector3(0, 1.1, 0);
 
   constructor(scene: THREE.Scene, sheet: SpriteSheet) {
-    for (let i = 0; i < 6; i++) {
-      const sprite = new BillboardSprite(sheet);
-      sprite.object.visible = false;
-      scene.add(sprite.object);
-      this.puffs.push({ sprite, age: Infinity });
-    }
+    this.pool = new PuffPool(scene, sheet, 8);
   }
 
   update(dt: number, tractor: Tractor | null): void {
-    const lifetime = 1.6;
     if (tractor) {
       this.timer -= dt;
       if (this.timer <= 0) {
         this.timer = 0.28;
-        const puff = this.puffs[this.next++ % this.puffs.length];
-        puff.age = 0;
-        puff.sprite.object.position.copy(tractor.exhaust(this.spot));
+        this.pool.emit(tractor.exhaust(this.spot), this.rise, 1.5, EXHAUST);
       }
     }
-    for (const puff of this.puffs) {
-      puff.age += dt;
-      const alive = puff.age < lifetime;
-      puff.sprite.object.visible = alive;
-      if (!alive) continue;
-      puff.sprite.object.position.y += dt * 0.9;
-      puff.sprite.setFrame(Math.min(2, Math.floor((puff.age / lifetime) * 3)));
-    }
+    this.pool.update(dt);
   }
 }
 
@@ -377,7 +366,7 @@ class Exhaust {
  * Движение на просёлке: трактор тарахтит на восток по ближней полосе, вишнёвая легковушка
  * проносится на запад по дальней. По одной машине на полосу — не наезжают друг на друга.
  */
-export function createTraffic(scene: THREE.Scene, textures: VehicleTextures, smoke: SpriteSheet, rng: Rng): (dt: number) => void {
+export function createTraffic(scene: THREE.Scene, textures: VehicleTextures, puff: SpriteSheet, rng: Rng): (dt: number) => void {
   const tractor = new Tractor(textures);
   const car = new Car(textures, CAR_PAINT.cherry);
   const travellers: Traveller[] = [
@@ -390,7 +379,7 @@ export function createTraffic(scene: THREE.Scene, textures: VehicleTextures, smo
     t.x = t.direction > 0 ? startX : endX;
     scene.add(t.root);
   }
-  const exhaust = new Exhaust(scene, smoke);
+  const exhaust = new Exhaust(scene, puff);
   return (dt) => {
     for (const t of travellers) {
       if (t.wait > 0) {

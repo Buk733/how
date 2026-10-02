@@ -1,5 +1,6 @@
 // Прокачка без графики: цены уровней и что они дают — их легко тестировать.
 import { BROOM, LOCK, UPGRADES } from './config';
+import { formatSeconds, t } from './i18n';
 import type { SaveData } from './save';
 
 export type UpgradeId = keyof typeof UPGRADES;
@@ -65,20 +66,19 @@ export function incomeMultiplier(levels: UpgradeLevels): number {
 }
 
 const percent = (fraction: number) => `${Math.round(fraction * 100)}%`;
-/** «2,3 с» — с неразрывным пробелом, чтобы «с» не переносилась на новую строку. */
-export const seconds = (value: number) => `${String(Math.round(value * 10) / 10).replace('.', ',')} с`;
 
 /** Что даёт уровень — текст для панели прокачки. */
 export function describeUpgrade(id: UpgradeId, level: number): string {
   const levels = { ...createUpgradeLevels(), [id]: level };
+  const text = t.upgrades;
   switch (id) {
     case 'speed':
-      return level === 0 ? 'обычная скорость' : `скорость +${percent(speedMultiplier(levels) - 1)}`;
+      return level === 0 ? text.speedBase : text.speed(percent(speedMultiplier(levels) - 1));
     case 'broom':
-      return `оглушает на ${seconds(broomStun(levels))}, перезарядка ${seconds(broomCooldown(levels))}`;
+      return text.broom(formatSeconds(broomStun(levels)), formatSeconds(broomCooldown(levels)));
     case 'latch':
-      return `закрывает баню на ${seconds(latchDuration(levels))}`;
+      return text.latch(formatSeconds(latchDuration(levels)));
     case 'stove':
-      return level === 0 ? 'доход без прибавки' : `доход +${percent(incomeMultiplier(levels) - 1)}`;
+      return level === 0 ? text.stoveBase : text.stove(percent(incomeMultiplier(levels) - 1));
   }
 }

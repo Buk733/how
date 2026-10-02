@@ -347,7 +347,8 @@ body {
 
 .hud-menus {
   display: grid;
-  justify-items: start;
+  /* кнопки одной ширины — по самой длинной подписи (в разных языках она разная) */
+  justify-items: stretch;
   gap: 6px;
 }
 
@@ -358,7 +359,8 @@ body {
 .hud-menu {
   position: relative;
   min-width: 128px;
-  padding: 7px 12px;
+  /* справа место под значок клавиши — длинная подпись под него не заходит */
+  padding: 7px 20px 7px 12px;
   border: none;
   border-radius: 12px;
   background: var(--panel);
@@ -540,6 +542,33 @@ body {
 .hud-music.off {
   opacity: 0.55;
   background: linear-gradient(135deg, transparent 46%, var(--red) 46%, var(--red) 54%, transparent 54%), var(--panel);
+}
+
+/* выбор языка (демо и разработка): видна метка, поверх неё — прозрачный список */
+.hud-lang {
+  top: calc(180px + env(safe-area-inset-top));
+  display: grid;
+  place-items: center;
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.hud-lang-code {
+  display: grid;
+  place-items: center;
+  line-height: 1.1;
+  text-align: center;
+  white-space: pre-line;
+}
+
+.hud-lang-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 /* портрет героя: открывает окно выбора */

@@ -1,4 +1,5 @@
 import { formatNumber } from '@engine/format';
+import { t } from '../i18n';
 import { button, element } from './dom';
 import { Modal } from './modal';
 
@@ -29,13 +30,13 @@ export class RebirthPanel {
   private ready = false;
 
   constructor(container: HTMLElement, onRebirth: () => void, onClose: () => void) {
-    this.modal = new Modal(container, '🔄 Перерождение', onClose, 'rebirth-panel');
+    this.modal = new Modal(container, t.rebirth.title, onClose, 'rebirth-panel');
     this.now = element('div', 'rebirth-now');
     this.next = element('div', 'rebirth-next');
     const lists = element('div', 'rebirth-lists');
     lists.append(
-      this.list('Начнёшь заново', ['монеты', 'персонажи на полке', 'места на полке', 'прокачка', 'уровень соседей'], 'reset'),
-      this.list('Останется навсегда', ['альбом', 'пасхалки', 'ключи от кейсов', 'награды за вход', 'герой'], 'keep'),
+      this.list(t.rebirth.reset, t.rebirth.resetItems, 'reset'),
+      this.list(t.rebirth.keep, t.rebirth.keepItems, 'keep'),
     );
     const progress = element('div', 'rebirth-progress');
     this.bar = element('div', 'rebirth-bar');
@@ -55,14 +56,14 @@ export class RebirthPanel {
   }
 
   render(view: RebirthView): void {
-    this.setText(this.now, view.rebirths > 0 ? `Сейчас: доход ${view.multiplier} · перерождений: ${view.rebirths}` : 'Ты ещё не перерождался');
-    this.setText(this.next, `После перерождения: доход ${view.nextMultiplier} навсегда`);
+    this.setText(this.now, view.rebirths > 0 ? t.rebirth.now(view.multiplier, view.rebirths) : t.rebirth.never);
+    this.setText(this.next, t.rebirth.next(view.nextMultiplier));
     const share = Math.min(1, view.coins / view.cost);
     this.bar.style.setProperty('--progress', String(share));
     this.setText(this.barText, `💰 ${formatNumber(Math.floor(Math.min(view.coins, view.cost)))} / ${formatNumber(view.cost)}`);
     this.ready = share >= 1 && view.blocked === null;
     const confirming = this.ready && performance.now() < this.confirmUntil;
-    this.setText(this.action, confirming ? 'Точно? Нажми ещё раз' : `🔄 Переродиться за 💰 ${formatNumber(view.cost)}`);
+    this.setText(this.action, confirming ? t.rebirth.confirm : t.rebirth.action(formatNumber(view.cost)));
     this.action.classList.toggle('disabled', !this.ready);
     this.action.classList.toggle('confirm', confirming);
     this.setText(this.blocked, view.blocked ?? '');

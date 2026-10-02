@@ -62,6 +62,7 @@ describe('товары за Яны', () => {
     expect(owns(save, 'income_x2')).toBe(true);
     expect(steadyIncome(save)).toBe(before * SHOP.incomeFactor);
     expect(totalIncome(save, 0)).toBe(before * SHOP.incomeFactor);
+    save.coins = 1_000_000;
     save.savedAt = 1;
     expect(offlineEarnings(save, 1 + 3600_000)?.coins).toBe(Math.floor(before * SHOP.incomeFactor * OFFLINE.rate * 3600));
   });

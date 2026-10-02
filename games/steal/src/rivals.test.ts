@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOT, NEIGHBORS, RIVALS } from './config';
+import { t } from './i18n';
 import { chaseSpeed, describeRivals, rivalLevel, rivalStats, stunOn } from './rivals';
 import { createUpgradeLevels, broomStun } from './upgrades';
 
@@ -67,8 +68,8 @@ describe('прокачка соседей', () => {
 
   it('подсказка в окне прокачки называет уровни обоих соседей', () => {
     const text = describeRivals(RIVALS.incomeSteps[2]);
-    expect(text).toContain(`${zhorik.name} — ур. 3`);
-    expect(text).toContain(`${timur.name} — ур. 4`);
+    expect(text).toContain(`${t.neighbors.zhorik.name} — ур. 3`);
+    expect(text).toContain(`${t.neighbors.timur.name} — ур. 4`);
   });
 
   it('в погоне хозяин всегда быстрее вора, и чем выше уровень, тем заметнее', () => {

@@ -1,4 +1,5 @@
 import { formatNumber } from '@engine/format';
+import { t } from '../i18n';
 import { element } from './dom';
 import { Modal } from './modal';
 
@@ -24,14 +25,14 @@ export class UpgradePanel {
   private lastKey = '';
 
   constructor(container: HTMLElement, onBuy: (id: string) => void, onClose: () => void) {
-    this.modal = new Modal(container, '⚡ Прокачка', onClose, 'upgrade-panel');
+    this.modal = new Modal(container, t.upgrades.title, onClose, 'upgrade-panel');
     this.list = element('div', 'upgrade-list');
     this.list.addEventListener('click', (event) => {
       const buy = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-id]');
       if (buy?.dataset.id) onBuy(buy.dataset.id);
     });
     this.note = element('div', 'upgrade-note');
-    this.modal.body.append(this.list, this.note, element('div', 'modal-hint', 'Монеты тратятся сразу, прокачка остаётся навсегда'));
+    this.modal.body.append(this.list, this.note, element('div', 'modal-hint', t.upgrades.hint));
   }
 
   /** Строка под списком: какого уровня сейчас соседи. */
@@ -57,7 +58,7 @@ export class UpgradePanel {
 
     let buy: HTMLElement;
     if (view.cost === null) {
-      buy = element('div', 'upgrade-max', 'МАКС');
+      buy = element('div', 'upgrade-max', t.upgrades.max);
     } else {
       const button = element('button', 'buy-button', `💰 ${formatNumber(view.cost)}`);
       button.type = 'button';

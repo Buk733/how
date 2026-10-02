@@ -14,12 +14,13 @@ import type { Obstacles } from './entities/actor';
 import type { Brainrot } from './entities/brainrot';
 import { Bot, type BotState } from './entities/bot';
 import { GuardDog } from './guard-dog';
+import { formatSeconds, t } from './i18n';
 import type { Home } from './home';
 import { createNeighborRoster, neighborSlotFor, neighborUnitIncome, playerPower, rollNeighborCharacter, tierOf } from './neighbors';
 import { chaseSpeed, levelNews, rivalLevel, rivalStats, stunOn, type RivalStats } from './rivals';
 import { TUTORIAL_DONE, type UnitSave } from './save';
 import { element } from './ui/dom';
-import { seconds, speedMultiplier } from './upgrades';
+import { speedMultiplier } from './upgrades';
 import type { BanyaLayout } from './world';
 
 /** Сосед занимает места со 2-го по 7-е — середину своей скамьи. */
@@ -41,22 +42,6 @@ const AWAKE_AT_HOME: ReadonlySet<BotState> = new Set<BotState>(['idle', 'notice'
 const HOSTILE: ReadonlySet<BotState> = new Set<BotState>(['notice', 'guard', 'alert', 'chase', 'swing', 'raidGo', 'raidWait', 'raidEnter', 'raidEscape']);
 const RAIDING: ReadonlySet<BotState> = new Set<BotState>(['raidGo', 'raidWait', 'raidEnter', 'raidEscape']);
 
-/** Реплики соседей — по одной случайной на каждое событие. */
-const LINES = {
-  notice: ['Эй! Ты чего тут?', 'А ну выйди из моей бани!', 'Это моя баня!', 'Кто тут шастает?'],
-  alert: ['Вор!', 'Отдай!', 'Стой, ворюга!', 'Верни моё!'],
-  wake: ['А? Что? Кто?!', 'Проспал! Вор!', 'Кто тут?!'],
-  swing: ['Получай!', 'Кыш!', 'На!'],
-  stunned: ['Ай!', 'Ой-ой!', 'Ауч!', 'За что?!'],
-  caught: ['То-то же!', 'Моё!', 'Не трогай чужое!'],
-  giveUp: ['Ну, погоди!', 'Я запомнил!', 'Я тебе ещё покажу!'],
-  grab: ['Хи-хи!', 'Теперь моё!', 'Я быстренько!'],
-  beaten: ['Ой, всё!', 'Ухожу, ухожу!'],
-  locked: ['Закрыто?!', 'Эх, закрыто…'],
-  stashed: ['Хе-хе, моё!', 'Отличный улов!'],
-  levelUp: ['Я стал сильнее!', 'Кто теперь крутой?', 'Прокачался!'],
-} as const;
-
 /** Картинки соседей: сами боты, их собаки (по одной на соседа), веник и колокольчик. */
 export interface NeighborSheets {
   readonly bots: readonly SpriteSheet[];
@@ -68,7 +53,9 @@ export interface NeighborSheets {
 interface Neighbor {
   readonly config: (typeof NEIGHBORS)[number];
   readonly name: string;
-  readonly genitive: string;
+  /** Имя в фразах «прогнал кого» и «теперь у кого» (i18n: neighbors). */
+  readonly object: string;
+  readonly holder: string;
   readonly layout: BanyaLayout;
   /** Персонажи по местам — та же ссылка, что в сохранении. */
   readonly slots: (UnitSave | null)[];
@@ -153,7 +140,8 @@ export class Neighborhood {
       const layout = ctx.world.neighbors[i];
       const sign = ctx.labels.create('world-sign neighbor-sign');
       const signLevel = element('span', 'sign-level');
-      sign.element.append(element('span', 'sign-name', `БАНЯ ${config.genitive.toUpperCase()}`), signLevel);
+      const names = t.neighbors[config.id];
+      sign.element.append(element('span', 'sign-name', names.sign), signLevel);
       sign.anchor.copy(layout.signAnchor);
       const latchLabel = ctx.labels.create('plate-tag lock-tag');
       latchLabel.anchor.set(layout.centerX, 1.9, layout.interior.maxZ);
@@ -167,13 +155,14 @@ export class Neighborhood {
       const stats = rivalStats(rivalLevel(save.stats.peakIncome, config.levelOffset), config);
       const neighbor: Neighbor = {
         config,
-        name: config.name,
-        genitive: config.genitive,
+        name: names.name,
+        object: names.object,
+        holder: names.holder,
         layout,
         slots: save.neighbors[i].slots,
         residents: [],
         bot,
-        dog: new GuardDog(ctx, sheets.dogs[i], config.dog, layout.kennel, ctx.world),
+        dog: new GuardDog(ctx, sheets.dogs[i], names.dog, layout.kennel, ctx.world),
         bell,
         bellRing: 0,
         signLevel,
@@ -275,8 +264,8 @@ export class Neighborhood {
       bestDistance = distance;
     };
     for (const n of this.neighbors) {
-      if (HOSTILE.has(n.bot.state)) consider(n.bot.position, { name: n.name, detail: `${n.name} — оглушить на ${seconds(stunOn(playerStun, n.stats))}` });
-      if (n.dog.hostile) consider(n.dog.position, { name: n.dog.name, detail: `${n.dog.name} — прогнать в будку` });
+      if (HOSTILE.has(n.bot.state)) consider(n.bot.position, { name: n.name, detail: t.neighbors.stun(n.name, formatSeconds(stunOn(playerStun, n.stats))) });
+      if (n.dog.hostile) consider(n.dog.position, { name: n.dog.name, detail: t.neighbors.shooDog(n.dog.name) });
     }
     return best;
   }
@@ -318,18 +307,19 @@ export class Neighborhood {
     const { n, slot, r } = best;
     const room = findSlotFor(this.ctx.save, r.def, r.gold) !== null;
     const state = n.bot.state;
+    const text = t.neighbors;
     const detail = !room
-      ? 'нет места в бане — открой новое'
+      ? text.noRoom
       : state === 'sleeping'
         ? n.stats.bell
-          ? `${n.name} спит, но звякнет колокольчик — беги!`
-          : `${n.name} спит — тихо!`
+          ? text.sleepingBell(n.name)
+          : text.sleeping(n.name)
         : state === 'stunned'
-          ? `${n.name} оглушён — хватай и беги!`
+          ? text.stunned(n.name)
           : AWAKE_AT_HOME.has(state)
-            ? `${n.name} заметит — беги домой!`
-            : `${n.name} не дома — давай!`;
-    return { view: { title: `Украсть «${unitName(r.def, r.gold)}»`, detail, enabled: room }, run: () => this.steal(n, slot) };
+            ? text.awake(n.name)
+            : text.away(n.name);
+    return { view: { title: text.steal(unitName(r.def, r.gold)), detail, enabled: room }, run: () => this.steal(n, slot) };
   }
 
   /**
@@ -373,15 +363,16 @@ export class Neighborhood {
     const grew = level > n.stats.level;
     this.applyStats(n, rivalStats(level, n.config));
     if (!grew) return;
-    n.bot.say(LINES.levelUp, 2.5);
-    this.ctx.hud.showBanner(`${n.name} прокачался до ${level}-го уровня — ${levelNews(level)}!`, '#c07bff', 3500);
+    n.bot.say(t.neighbors.lines.levelUp, 2.5);
+    this.ctx.hud.showBanner(t.neighbors.levelUp(n.name, level, levelNews(level)), '#c07bff', 3500);
   }
 
   private applyStats(n: Neighbor, stats: RivalStats): void {
     n.stats = stats;
     n.dog.setPresent(stats.dog);
     n.bell.object.visible = stats.bell;
-    n.signLevel.textContent = `ур. ${stats.level} · ${n.config.trait}${stats.dog ? ' · 🐕' : ''}${stats.bell ? ' · 🔔' : ''}`;
+    const trait = t.neighbors[n.config.id].trait;
+    n.signLevel.textContent = `${t.neighbors.level(stats.level, trait)}${stats.dog ? ' · 🐕' : ''}${stats.bell ? ' · 🔔' : ''}`;
   }
 
   // ---------------------------------------------------------------- кража игроком
@@ -400,17 +391,17 @@ export class Neighborhood {
     const state = n.bot.state;
     if (AWAKE_AT_HOME.has(state)) {
       n.bot.setState('alert');
-      n.bot.say(LINES.alert);
+      n.bot.say(t.neighbors.lines.alert);
       this.ctx.audio.blip('alarm');
-      this.ctx.hud.showBanner(`${n.name} заметил! Беги в свою баню!`, '#ff6b6b');
+      this.ctx.hud.showBanner(t.neighbors.spotted(n.name), '#ff6b6b');
     } else if (state === 'stunned') {
-      this.ctx.hud.showBanner(`${n.name} сейчас очнётся — беги в свою баню!`, '#ffcd75');
+      this.ctx.hud.showBanner(t.neighbors.wakingUp(n.name), '#ffcd75');
     } else if (n.stats.bell) {
       this.ringBell(n);
       if (state === 'sleeping') n.bot.timer = Math.min(n.bot.timer, RIVALS.bellWake);
-      this.ctx.hud.showBanner(state === 'sleeping' ? `Колокольчик! ${n.name} сейчас проснётся — беги!` : 'Неси в свою баню!', '#ffcd75');
+      this.ctx.hud.showBanner(state === 'sleeping' ? t.neighbors.bell(n.name) : t.neighbors.carryHome, '#ffcd75');
     } else {
-      this.ctx.hud.showBanner('Неси в свою баню!', '#a7f070');
+      this.ctx.hud.showBanner(t.neighbors.carryHome, '#a7f070');
     }
     this.ctx.markDirty(true);
   }
@@ -423,21 +414,21 @@ export class Neighborhood {
     loot.brainrot.update(dt);
     if (!this.home.isInside(p)) return;
     if (!this.home.deposit(loot.brainrot)) {
-      this.ctx.hud.showBanner('Нет места на полке — открой новое место', '#ff6b6b');
+      this.ctx.hud.showBanner(t.neighbors.shelfFull, '#ff6b6b');
       return;
     }
     this.carried = null;
     this.ctx.save.stats.stolen++;
     this.ctx.audio.blip('unlock');
     const { def, gold } = loot.brainrot;
-    this.ctx.hud.showBanner(`Украл «${unitName(def, gold)}»! +${formatNumber(unitIncome(def, gold))}/с`, gold ? GOLD_COLOR : '#a7f070');
+    this.ctx.hud.showBanner(t.neighbors.stole(unitName(def, gold), formatNumber(unitIncome(def, gold))), gold ? GOLD_COLOR : '#a7f070');
     this.ctx.fx.sparkles(loot.brainrot.position, gold || tierOf(def.rarity) >= tierOf('epic'));
     const owner = loot.from;
     const state = owner.bot.state;
     if (state === 'alert' || state === 'chase' || state === 'swing') this.sendHome(owner, '😤');
     // обокраденный запомнит — и скоро придёт мстить (кроме первой, обучающей кражи)
     if (this.ctx.save.tutorial >= TUTORIAL_DONE) {
-      owner.bot.say(LINES.giveUp, 2.5);
+      owner.bot.say(t.neighbors.lines.giveUp, 2.5);
       owner.grudge = true;
       this.raidTimer = Math.min(this.raidTimer, this.ctx.rng.range(...RIVALS.revengeDelay));
     }
@@ -451,10 +442,10 @@ export class Neighborhood {
     this.carried = null;
     this.ctx.player.stun(PLAYER.stunTime + n.stats.hitStun - BOT.hitStun);
     this.ctx.audio.blip('caught');
-    this.ctx.hud.showBanner(`${n.name} огрел тебя веником! «${unitName(loot.brainrot.def, loot.brainrot.gold)}» вернулся на место`, '#ff6b6b');
+    this.ctx.hud.showBanner(t.neighbors.hitYou(n.name, unitName(loot.brainrot.def, loot.brainrot.gold)), '#ff6b6b');
     this.returnToNeighbor(loot.from, loot.brainrot, loot.slot);
     this.sendHome(n, '😏');
-    n.bot.say(LINES.caught);
+    n.bot.say(t.neighbors.lines.caught);
     const owner = loot.from.bot.state;
     if (loot.from !== n && (owner === 'alert' || owner === 'chase' || owner === 'swing')) this.sendHome(loot.from, '😏');
   }
@@ -475,16 +466,16 @@ export class Neighborhood {
     if (raiding) n.raidSlot = -1;
     bot.setState('stunned', stun);
     bot.knock(bot.position.x - from.x, bot.position.z - from.z, 0.9);
-    bot.say(raiding ? LINES.beaten : LINES.stunned, 1.2);
-    this.ctx.labels.float('Шлёп!', bot.position.clone().setY(2.2), 'float-hit', 800);
+    bot.say(raiding ? t.neighbors.lines.beaten : t.neighbors.lines.stunned, 1.2);
+    this.ctx.labels.float(t.neighbors.slap, bot.position.clone().setY(2.2), 'float-hit', 800);
     this.ctx.audio.blip('whack');
     this.ctx.fx.shake(0.12);
     if (loot) {
       this.home.recover(loot);
       this.ctx.audio.blip('unlock');
-      this.ctx.hud.showBanner(`Ты отбил «${unitName(loot.def, loot.gold)}»!`, '#a7f070');
+      this.ctx.hud.showBanner(t.neighbors.gotBack(unitName(loot.def, loot.gold)), '#a7f070');
     } else if (raiding) {
-      this.ctx.hud.showBanner(`Ты прогнал ${n.genitive}!`, '#a7f070');
+      this.ctx.hud.showBanner(t.neighbors.chasedOff(n.name, n.object), '#a7f070');
     }
   }
 
@@ -510,7 +501,7 @@ export class Neighborhood {
       return;
     }
     player.knock(player.position.x - bot.position.x, player.position.z - bot.position.z, PLAYER.knockback);
-    this.ctx.labels.float('Шлёп!', player.position.clone().setY(2), 'float-hit', 800);
+    this.ctx.labels.float(t.neighbors.slap, player.position.clone().setY(2), 'float-hit', 800);
     this.ctx.audio.blip('whack');
     this.ctx.fx.shake(0.3);
     if (this.carried) {
@@ -518,7 +509,7 @@ export class Neighborhood {
       return;
     }
     player.stun(n.stats.hitStun);
-    this.ctx.hud.showBanner(`${n.name} выгоняет тебя веником!`, '#ff6b6b');
+    this.ctx.hud.showBanner(t.neighbors.kicksOut(n.name), '#ff6b6b');
     bot.setState('guard', 0.6); // постоит, потом снова выгонять
   }
 
@@ -529,14 +520,14 @@ export class Neighborhood {
     if (event === 'bark' && n.bot.state === 'sleeping') this.wakeUp(n);
     if (event === 'bite' && this.dogHints < 1) {
       this.dogHints++;
-      this.ctx.hud.showBanner(`${n.dog.name} кусается! Шлёпни его веником — спрячется в будку`, '#ffcd75', 3500);
+      this.ctx.hud.showBanner(t.neighbors.dogBites(n.dog.name), '#ffcd75', 3500);
     }
   }
 
   private ringBell(n: Neighbor): void {
     n.bellRing = 1.2;
     this.ctx.audio.blip('bell');
-    this.ctx.labels.float('Дзынь!', n.layout.bell.clone().setY(2.3), 'float-hit', 900);
+    this.ctx.labels.float(t.neighbors.ding, n.layout.bell.clone().setY(2.3), 'float-hit', 900);
   }
 
   private updateBell(n: Neighbor, dt: number): void {
@@ -593,10 +584,10 @@ export class Neighborhood {
     }
     n.raidLoot = loot;
     n.bot.setState('raidEscape');
-    n.bot.say(LINES.grab);
+    n.bot.say(t.neighbors.lines.grab);
     n.bot.setPath([this.home.entranceNear(n.bot.position.x), n.layout.entrance.clone(), this.plateFront(n, BOT.slots >> 1)]);
     this.ctx.audio.blip('alarm');
-    this.ctx.hud.showBanner(`${n.name} украл у тебя «${unitName(loot.def, loot.gold)}»! Догони и шлёпни его!`, '#ff6b6b', 3500);
+    this.ctx.hud.showBanner(t.neighbors.robbed(n.name, unitName(loot.def, loot.gold)), '#ff6b6b', 3500);
   }
 
   private stashLoot(n: Neighbor): void {
@@ -604,9 +595,9 @@ export class Neighborhood {
     n.raidLoot = null;
     n.bot.setState('idle', this.ctx.rng.range(...n.stats.awakeTime));
     if (!loot) return;
-    n.bot.say(LINES.stashed);
+    n.bot.say(t.neighbors.lines.stashed);
     this.returnToNeighbor(n, loot, neighborSlotFor(n.slots, loot.def, loot.gold));
-    this.ctx.hud.showBanner(`«${unitName(loot.def, loot.gold)}» теперь у ${n.genitive} — укради обратно!`, '#ffcd75');
+    this.ctx.hud.showBanner(t.neighbors.lost(unitName(loot.def, loot.gold), n.holder), '#ffcd75');
   }
 
   // ---------------------------------------------------------------- поведение бота
@@ -653,7 +644,7 @@ export class Neighborhood {
         bot.setStatus('😠');
         if (this.carried?.from !== n || this.ctx.time - n.chaseStart > BOT.chaseTimeout) {
           this.sendHome(n, '😤');
-          if (this.carried?.from === n) bot.say(LINES.giveUp, 2.5);
+          if (this.carried?.from === n) bot.say(t.neighbors.lines.giveUp, 2.5);
           break;
         }
         this.pursue(n, this.chaseSpeed(n), dt);
@@ -690,7 +681,7 @@ export class Neighborhood {
         if (!this.home.locked) this.enterHome(n);
         else if (bot.stateTime > RAID.waitAtLock) {
           this.sendHome(n, '😤');
-          bot.say(LINES.locked);
+          bot.say(t.neighbors.lines.locked);
         }
         break;
       case 'raidEnter':
@@ -759,10 +750,10 @@ export class Neighborhood {
 
   private notice(n: Neighbor): void {
     n.bot.setState('notice');
-    n.bot.say(LINES.notice);
+    n.bot.say(t.neighbors.lines.notice);
     const hint = this.broomHints < BROOM_HINTS;
     if (hint) this.broomHints++;
-    this.ctx.hud.showBanner(`${n.name} тебя заметил!${hint ? ' Шлёпни его веником — или беги' : ''}`, '#ff6b6b', hint ? 3500 : 2000);
+    this.ctx.hud.showBanner(`${t.neighbors.seesYou(n.name)}${hint ? t.neighbors.seesYouHint : ''}`, '#ff6b6b', hint ? 3500 : 2000);
   }
 
   /** Решение после «❗»: гнаться за вором, выгонять из бани или успокоиться. */
@@ -775,9 +766,9 @@ export class Neighborhood {
   private wakeUp(n: Neighbor): void {
     if (this.carried?.from === n) {
       n.bot.setState('alert');
-      n.bot.say(LINES.wake);
+      n.bot.say(t.neighbors.lines.wake);
       this.ctx.audio.blip('alarm');
-      this.ctx.hud.showBanner(`${n.name} проснулся и заметил пропажу! Беги!`, '#ff6b6b');
+      this.ctx.hud.showBanner(t.neighbors.noticedLoss(n.name), '#ff6b6b');
     } else if (this.intruderIn(n)) {
       this.notice(n);
     } else {
@@ -802,7 +793,7 @@ export class Neighborhood {
   private windUp(n: Neighbor, from: 'guard' | 'chase'): void {
     n.swingFrom = from;
     n.bot.setState('swing');
-    n.bot.say(LINES.swing, 0.9);
+    n.bot.say(t.neighbors.lines.swing, 0.9);
   }
 
   /** Сосед идёт домой по пути в обход стен. */
@@ -828,7 +819,7 @@ export class Neighborhood {
     n.layout.barrier.visible = n.latched;
     n.latchLabel.visible = n.latched;
     if (!n.latched) return;
-    const text = `🔒 ${Math.ceil(n.latchTimer)} с`;
+    const text = t.neighbors.latchLeft(Math.ceil(n.latchTimer));
     if (n.latchLabel.element.textContent !== text) n.latchLabel.element.textContent = text;
   }
 

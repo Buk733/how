@@ -1,6 +1,7 @@
 // Прокачка соседей без графики: уровень соседа и что он даёт — это легко тестировать.
 import { clamp } from '@engine/math';
 import { BOT, NEIGHBORS, RIVALS } from './config';
+import { t } from './i18n';
 
 /** Характер соседа из config.ts (NEIGHBORS). */
 export type NeighborTrait = Pick<(typeof NEIGHBORS)[number], 'levelOffset' | 'sleepFactor' | 'awakeFactor'>;
@@ -72,13 +73,13 @@ export function chaseSpeed(thiefSpeed: number, stats: RivalStats): number {
 
 /** Подсказка в окне прокачки: какого уровня соседи сейчас. */
 export function describeRivals(peakIncome: number): string {
-  const levels = NEIGHBORS.map((n) => `${n.name} — ур. ${rivalLevel(peakIncome, n.levelOffset)}`).join(', ');
-  return `Соседи качаются вместе с тобой: ${levels}. Их закалка съедает часть оглушения веником, а в погоне они быстрее.`;
+  const levels = NEIGHBORS.map((n) => t.rivals.level(t.neighbors[n.id].name, rivalLevel(peakIncome, n.levelOffset))).join(', ');
+  return t.rivals.note(levels);
 }
 
 /** Что появилось у соседа на новом уровне — для объявления. */
 export function levelNews(level: number): string {
-  if (level === RIVALS.dogLevel) return 'завёл собаку у входа';
-  if (level === RIVALS.bellLevel) return 'повесил колокольчик над полком';
-  return 'бегает быстрее и держит удар веником';
+  if (level === RIVALS.dogLevel) return t.neighbors.newsDog;
+  if (level === RIVALS.bellLevel) return t.neighbors.newsBell;
+  return t.neighbors.newsFaster;
 }

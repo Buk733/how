@@ -9,6 +9,7 @@ import { CHARACTERS } from './data/characters';
 import { RARITIES } from './data/rarity';
 import { SECRETS } from './data/secrets';
 import { totalIncome } from './economy';
+import { formatAway, formatMultiplier, t } from './i18n';
 import type { OfflineEarnings } from './offline';
 import { canRebirth, rebirthCost, rebirthMultiplier } from './rebirth';
 import { AlbumPanel } from './ui/album-panel';
@@ -28,20 +29,6 @@ export interface RetentionActions {
   rebirth(): boolean;
   /** Почему сейчас нельзя переродиться (несёшь добычу, идёт набег) или null. */
   rebirthBlocked(): string | null;
-}
-
-/** «×1,5». */
-export function formatMultiplier(value: number): string {
-  return `×${String(Math.round(value * 100) / 100).replace('.', ',')}`;
-}
-
-/** «2 ч 15 мин», «45 мин». */
-export function formatAway(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  if (hours === 0) return `${minutes} мин`;
-  return rest > 0 ? `${hours} ч ${rest} мин` : `${hours} ч`;
 }
 
 /**
@@ -82,11 +69,10 @@ export class RetentionMenus {
   /** Монеты за время отсутствия ждут в окне «С возвращением!». */
   offerWelcome(earned: OfflineEarnings): void {
     this.offline = earned;
-    const capped = earned.away > earned.seconds;
     this.welcome.show({
       away: formatAway(earned.away),
       coins: earned.coins,
-      note: `Без тебя персонажи приносят ${Math.round(OFFLINE.rate * 100)}% дохода и копят не дольше ${OFFLINE.maxHours} ч${capped ? ' — заходи почаще!' : ''}`,
+      note: t.welcome.note(Math.round(OFFLINE.rate * 100), Math.round(OFFLINE.maxShare * 100)) + (earned.capped ? t.welcome.capped : ''),
     });
   }
 
@@ -166,12 +152,12 @@ export class RetentionMenus {
     const { prize } = reward;
     let text = `${reward.icon} ${reward.label}`;
     if (prize.kind === 'coins') {
-      text = `💰 +${formatNumber(coins)} монет`;
+      text = t.daily.coins(formatNumber(coins));
       save.stats.earned += coins;
     } else if (prize.kind === 'key') {
-      text = `🔑 Ключ: «${caseById(prize.caseId)?.name ?? prize.caseId}» — открой в кейсах!`;
+      text = t.daily.key(caseById(prize.caseId)?.name ?? prize.caseId);
     }
-    this.ctx.hud.showBanner(`📅 День ${dailyState(save, now).streak}: ${text}`, '#a7f070', 3200);
+    this.ctx.hud.showBanner(t.daily.banner(dailyState(save, now).streak, text), '#a7f070', 3200);
     this.ctx.fx.sparkles(this.ctx.player.position, true);
     this.ctx.audio.blip('win');
     this.ctx.markDirty(true);

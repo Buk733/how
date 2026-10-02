@@ -419,7 +419,7 @@ export function toEntries(entries: readonly YandexEntry[], playerId: string | nu
     .sort((a, b) => a.rank - b.rank)
     .map((e) => ({
       rank: e.rank + base,
-      name: e.player.publicName?.trim() || 'Игрок скрыл имя',
+      name: e.player.publicName?.trim() ?? '',
       score: e.score,
       avatar: avatarOf(e),
       isPlayer: playerId !== null && e.player.uniqueID === playerId,

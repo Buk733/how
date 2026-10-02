@@ -1,7 +1,8 @@
 import { formatNumber } from '@engine/format';
-import type { LeaderboardTable, Platform, ShopProduct } from '@engine/platform/platform';
+import type { LeaderboardEntry, LeaderboardTable, Platform, ShopProduct } from '@engine/platform/platform';
 import type { GameContext } from './context';
 import { COIN_CHEST, PRODUCTS, productById, type ProductId } from './data/shop';
+import { t } from './i18n';
 import { chestCoins, owns } from './shop';
 import { LeaderboardPanel, type LeaderboardView } from './ui/leaderboard-panel';
 import type { Modal } from './ui/modal';
@@ -81,7 +82,7 @@ export class ShopMenus {
           icon: def.icon,
           name: def.name,
           description: def.description,
-          detail: def.id === COIN_CHEST ? `Сейчас это 💰 ${formatNumber(chestCoins(save))}` : '',
+          detail: def.id === COIN_CHEST ? t.shop.chestNow(formatNumber(chestCoins(save))) : '',
           price: product.priceValue,
           currencyImage: product.currencyImage,
           owned: def.kind === 'permanent' && owns(save, def.id),
@@ -125,8 +126,8 @@ export class ShopMenus {
     const ready = table.state === 'ready' ? table.value : null;
     return {
       state: ready ? 'ready' : table.state === 'unavailable' ? 'unavailable' : 'loading',
-      rows: (ready?.entries ?? []).map((e) => ({ rank: e.rank, name: e.name, score: `💰 ${formatNumber(e.score)}/с`, isPlayer: e.isPlayer })),
-      best: `Твой лучший доход: 💰 ${formatNumber(save.stats.bestIncome)} в секунду`,
+      rows: (ready?.entries ?? []).map((e) => ({ rank: e.rank, name: leaderName(e), score: t.leaderboard.score(formatNumber(e.score)), isPlayer: e.isPlayer })),
+      best: t.leaderboard.best(formatNumber(save.stats.bestIncome)),
       guest: !this.platform.isAuthorized(),
       sample: ready?.sample === true,
       busy: this.busy,
@@ -158,4 +159,10 @@ export class ShopMenus {
     }
     await this.loadTable();
   }
+}
+
+/** Имя в таблице: сам игрок — «Ты» (в примере таблицы), скрывший имя — «Игрок скрыл имя». */
+function leaderName(entry: LeaderboardEntry): string {
+  if (entry.isPlayer && entry.name === '') return t.leaderboard.you;
+  return entry.name === '' ? t.leaderboard.hiddenName : entry.name;
 }

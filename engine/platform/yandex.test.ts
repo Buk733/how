@@ -222,7 +222,7 @@ describe('Яндекс: рекорды', () => {
     expect(scores).toEqual([['income', 1234]]);
     const table = await board?.getTable();
     expect(table?.entries.map((e) => [e.rank, e.name, e.isPlayer, e.avatar])).toEqual([
-      [1, 'Игрок скрыл имя', false, 'a.png'],
+      [1, '', false, 'a.png'],
       [2, 'Я', true, null],
     ]);
     expect(table?.player?.score).toBe(50);

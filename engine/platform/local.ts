@@ -3,6 +3,7 @@ import {
   readJson,
   writeJson,
   type DemoProduct,
+  type DemoTexts,
   type Leaderboard,
   type LeaderboardEntry,
   type LeaderboardTable,
@@ -25,6 +26,14 @@ export interface LocalPlatformOptions {
   readonly storage?: StorageLike | null;
 }
 
+/** Таблички по умолчанию, если игра не дала свои. */
+const DEFAULT_TEXTS: DemoTexts = {
+  fullscreenAd: '📺 Здесь будет полноэкранная реклама',
+  rewardedAd: '📺 Здесь будет реклама за награду\nВ демо вместо ролика — эта табличка',
+  login: '🔑 Здесь будет вход в аккаунт Яндекса',
+  payment: '💳 Здесь будет оплата Янами\nВ демо покупка бесплатная',
+};
+
 /**
  * Заглушка площадки для разработки и демо: сохранения в localStorage, вместо рекламы, оплаты и входа —
  * табличка или ничего. Покупки бесплатные, таблица рекордов — пример с выдуманными игроками.
@@ -38,14 +47,16 @@ export class LocalPlatform implements Platform {
   private readonly storage: StorageLike | null;
   private readonly storageKey: string;
   private readonly previewMs: number;
+  private readonly texts: () => DemoTexts;
   private authorized = false;
 
   constructor(options: PlatformOptions, local: LocalPlatformOptions = {}) {
     this.storageKey = options.storageKey;
     this.storage = local.storage === undefined ? browserStorage() : local.storage;
     this.previewMs = local.previewMs ?? 0;
-    const preview = (text: string) => this.preview(text);
-    this.payments = options.demoCatalog ? new LocalShop(options.demoCatalog, this.storage, `${options.storageKey}.purchases`, preview) : null;
+    this.texts = options.demoTexts ?? (() => DEFAULT_TEXTS);
+    const payment = () => this.preview(this.texts().payment);
+    this.payments = options.demoCatalog ? new LocalShop(options.demoCatalog, this.storage, `${options.storageKey}.purchases`, payment) : null;
     this.leaderboard = options.leaderboard ? new SampleRecords(() => this.authorized) : null;
   }
 
@@ -63,12 +74,12 @@ export class LocalPlatform implements Platform {
 
   async showFullscreenAd(): Promise<void> {
     console.info('[реклама] полноэкранная (заглушка)');
-    await this.preview('📺 Здесь будет полноэкранная реклама');
+    await this.preview(this.texts().fullscreenAd);
   }
 
   async showRewardedAd(): Promise<boolean> {
     console.info('[реклама] за вознаграждение (заглушка) — награда выдана');
-    await this.preview('📺 Здесь будет реклама за награду\nВ демо вместо ролика — эта табличка');
+    await this.preview(this.texts().rewardedAd);
     return true;
   }
 
@@ -81,7 +92,7 @@ export class LocalPlatform implements Platform {
   }
 
   async openAuth(): Promise<boolean> {
-    await this.preview('🔑 Здесь будет вход в аккаунт Яндекса');
+    await this.preview(this.texts().login);
     this.authorized = true;
     return true;
   }
@@ -115,9 +126,10 @@ class LocalShop implements Payments {
   private readonly catalog: readonly DemoProduct[];
   private readonly storage: StorageLike | null;
   private readonly key: string;
-  private readonly preview: (text: string) => Promise<void>;
+  /** Табличка «Здесь будет оплата». */
+  private readonly preview: () => Promise<void>;
 
-  constructor(catalog: readonly DemoProduct[], storage: StorageLike | null, key: string, preview: (text: string) => Promise<void>) {
+  constructor(catalog: readonly DemoProduct[], storage: StorageLike | null, key: string, preview: () => Promise<void>) {
     this.catalog = catalog;
     this.storage = storage;
     this.key = key;
@@ -137,7 +149,7 @@ class LocalShop implements Payments {
 
   async purchase(productId: string): Promise<ShopPurchase | null> {
     if (!this.catalog.some((p) => p.id === productId)) return null;
-    await this.preview('💳 Здесь будет оплата Янами\nВ демо покупка бесплатная');
+    await this.preview();
     const purchase = { productId, token: `demo-${Date.now()}-${Math.floor(Math.random() * 1e9)}` };
     this.write([...this.read(), purchase]);
     return purchase;
@@ -163,18 +175,18 @@ class LocalShop implements Payments {
   }
 }
 
-/** Выдуманные соседи по таблице: в демо видно, как выглядит рейтинг. */
+/** Выдуманные соседи по таблице (ники латиницей — подходят к любому языку): в демо видно, как выглядит рейтинг. */
 const SAMPLE: readonly (readonly [string, number])[] = [
-  ['Тимур', 2_400_000],
-  ['Пармейстер', 1_150_000],
-  ['Банщица Люба', 640_000],
-  ['Жорик', 310_000],
-  ['Веничек', 150_000],
-  ['Кот Котость', 72_000],
-  ['Хамам-ага', 31_000],
-  ['Шайка', 12_500],
-  ['Ковшик', 4_800],
-  ['Новичок', 900],
+  ['Timur', 2_400_000],
+  ['ParMaster', 1_150_000],
+  ['Lyuba_Banya', 640_000],
+  ['Zhorik', 310_000],
+  ['Venichek', 150_000],
+  ['KotKotost', 72_000],
+  ['HamamAga', 31_000],
+  ['Shaika', 12_500],
+  ['Kovshik', 4_800],
+  ['Newbie', 900],
 ];
 
 /** Таблица рекордов в демо: пример, куда встаёт и сам игрок, если вошёл и прислал результат. */
@@ -193,7 +205,7 @@ class SampleRecords implements Leaderboard {
 
   async getTable(): Promise<LeaderboardTable> {
     const rows: { name: string; score: number; isPlayer: boolean }[] = SAMPLE.map(([name, score]) => ({ name, score, isPlayer: false }));
-    if (this.authorized() && this.best > 0) rows.push({ name: 'Ты', score: this.best, isPlayer: true });
+    if (this.authorized() && this.best > 0) rows.push({ name: '', score: this.best, isPlayer: true });
     rows.sort((a, b) => b.score - a.score);
     const entries: LeaderboardEntry[] = rows.map((row, i) => ({ ...row, rank: i + 1, avatar: null }));
     return { entries, player: entries.find((e) => e.isPlayer) ?? null, sample: true };

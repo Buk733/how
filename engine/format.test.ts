@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatNumber } from './format';
+import { formatNumber, setDecimalSeparator } from './format';
 
 describe('formatNumber', () => {
   it('небольшие числа — как есть, без дробной части', () => {
@@ -15,5 +15,12 @@ describe('formatNumber', () => {
     expect(formatNumber(999_999)).toBe('999K');
     expect(formatNumber(5_600_000)).toBe('5,6M');
     expect(formatNumber(2_000_000_000)).toBe('2B');
+  });
+
+  it('разделитель — как в языке игры', () => {
+    setDecimalSeparator('.');
+    expect(formatNumber(1234)).toBe('1.23K');
+    setDecimalSeparator(',');
+    expect(formatNumber(1234)).toBe('1,23K');
   });
 });

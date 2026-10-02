@@ -1,4 +1,5 @@
 // Ежедневные награды без графики: календарь на 7 дней и серия заходов подряд.
+import { t } from './i18n';
 import type { SaveData } from './save';
 import { coinsPrize, dayKey, startBoost } from './wheel';
 
@@ -10,6 +11,7 @@ export type DailyPrize =
 export interface DailyReward {
   readonly prize: DailyPrize;
   readonly icon: string;
+  /** Подпись на языке игры (i18n: daily.labels, по порядку дней). */
   readonly label: string;
 }
 
@@ -17,15 +19,22 @@ export interface DailyReward {
  * Награда за каждый день серии. Седьмой — самый ценный, дальше календарь идёт по кругу.
  * Монеты — минуты дохода игрока, но не меньше minCoins.
  */
-export const DAILY: readonly DailyReward[] = [
-  { prize: { kind: 'coins', minutes: 3, minCoins: 300 }, icon: '💰', label: 'Монеты' },
-  { prize: { kind: 'key', caseId: 'bath' }, icon: '🪣', label: 'Банный кейс' },
-  { prize: { kind: 'coins', minutes: 10, minCoins: 1000 }, icon: '💰', label: 'Много монет' },
-  { prize: { kind: 'boost', minutes: 10 }, icon: '⚡', label: '×2 доход на 10 мин' },
-  { prize: { kind: 'key', caseId: 'meme' }, icon: '🎭', label: 'Мемный кейс' },
-  { prize: { kind: 'coins', minutes: 30, minCoins: 3000 }, icon: '💰', label: 'Гора монет' },
-  { prize: { kind: 'key', caseId: 'gold' }, icon: '👑', label: 'Золотой кейс' },
+const REWARDS_BY_DAY: readonly Omit<DailyReward, 'label'>[] = [
+  { prize: { kind: 'coins', minutes: 3, minCoins: 300 }, icon: '💰' },
+  { prize: { kind: 'key', caseId: 'bath' }, icon: '🪣' },
+  { prize: { kind: 'coins', minutes: 10, minCoins: 1000 }, icon: '💰' },
+  { prize: { kind: 'boost', minutes: 10 }, icon: '⚡' },
+  { prize: { kind: 'key', caseId: 'meme' }, icon: '🎭' },
+  { prize: { kind: 'coins', minutes: 30, minCoins: 3000 }, icon: '💰' },
+  { prize: { kind: 'key', caseId: 'gold' }, icon: '👑' },
 ];
+
+export const DAILY: readonly DailyReward[] = REWARDS_BY_DAY.map((reward, i) => ({
+  ...reward,
+  get label() {
+    return t.daily.labels[i];
+  },
+}));
 
 const DAY = 86_400_000;
 

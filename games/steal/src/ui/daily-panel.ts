@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { button, element, formatWait } from './dom';
 import { Modal } from './modal';
 
@@ -30,17 +31,17 @@ export class DailyPanel {
   private lastKey = '';
 
   constructor(container: HTMLElement, onClaim: () => void, onClose: () => void) {
-    this.modal = new Modal(container, '📅 Награды за вход', onClose, 'daily-panel');
+    this.modal = new Modal(container, t.daily.title, onClose, 'daily-panel');
     this.grid = element('div', 'daily-grid');
     this.streak = element('div', 'daily-streak');
-    this.claim = button('buy-button free daily-claim', 'Забрать', onClaim);
+    this.claim = button('buy-button free daily-claim', t.daily.claim, onClaim);
     this.wait = element('div', 'daily-wait');
     this.modal.body.append(
       this.streak,
       this.grid,
       this.claim,
       this.wait,
-      element('div', 'modal-hint', 'Заходи каждый день подряд — к седьмому дню награды всё лучше. Пропустишь день — серия начнётся заново.'),
+      element('div', 'modal-hint', t.daily.hint),
     );
   }
 
@@ -49,31 +50,21 @@ export class DailyPanel {
     if (key !== this.lastKey) {
       this.lastKey = key;
       this.grid.replaceChildren(...view.cells.map((cell) => this.cell(cell)));
-      this.streak.textContent = `Серия: ${view.streak} ${daysWord(view.streak)} подряд`;
+      this.streak.textContent = t.daily.streak(view.streak);
       this.claim.hidden = !view.available;
     }
-    const wait = view.available ? '' : `Следующая награда через ${formatWait(view.nextIn)}`;
+    const wait = view.available ? '' : t.daily.next(formatWait(view.nextIn));
     if (this.wait.textContent !== wait) this.wait.textContent = wait;
   }
 
   private cell(view: DailyCellView): HTMLDivElement {
     const cell = element('div', `daily-cell ${view.state}${view.day === 7 ? ' big' : ''}`);
     cell.append(
-      element('span', 'daily-day', `День ${view.day}`),
+      element('span', 'daily-day', t.daily.day(view.day)),
       element('span', 'daily-icon', view.state === 'claimed' ? '✓' : view.icon),
       element('span', 'daily-label', view.label),
     );
     if (view.amount) cell.append(element('span', 'daily-amount', view.amount));
     return cell;
   }
-}
-
-/** «1 день», «3 дня», «5 дней». */
-function daysWord(n: number): string {
-  const tens = n % 100;
-  const ones = n % 10;
-  if (tens >= 11 && tens <= 14) return 'дней';
-  if (ones === 1) return 'день';
-  if (ones >= 2 && ones <= 4) return 'дня';
-  return 'дней';
 }

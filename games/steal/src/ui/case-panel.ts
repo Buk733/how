@@ -1,5 +1,6 @@
 import { formatNumber } from '@engine/format';
-import { button, element, formatChance, formatWait, spriteIcon } from './dom';
+import { formatChance, t } from '../i18n';
+import { button, element, formatWait, spriteIcon } from './dom';
 import { Modal } from './modal';
 
 /** Карточка кейса в магазине. */
@@ -68,7 +69,7 @@ export class CasePanel {
 
   constructor(container: HTMLElement, callbacks: CasePanelCallbacks) {
     this.callbacks = callbacks;
-    this.modal = new Modal(container, '🎁 Кейсы', () => callbacks.onClose(), 'case-panel');
+    this.modal = new Modal(container, t.cases.title, () => callbacks.onClose(), 'case-panel');
     this.shop = element('div', 'case-shop');
     this.opening = element('div', 'case-opening');
     this.opening.hidden = true;
@@ -77,7 +78,7 @@ export class CasePanel {
     this.reel.append(this.strip, element('div', 'reel-marker'));
     this.result = element('div', 'case-result');
     this.opening.append(this.reel, this.result);
-    this.modal.body.append(this.shop, this.opening, element('div', 'modal-hint', 'Кейсы — только за монеты. Шансы всегда на виду.'));
+    this.modal.body.append(this.shop, this.opening, element('div', 'modal-hint', t.cases.hint));
   }
 
   /** Идёт ли прокрутка ленты. */
@@ -95,14 +96,14 @@ export class CasePanel {
       if (!buy || !wait || !note) continue;
       const text =
         card.payment === 'free'
-          ? '🎁 Открыть бесплатно'
+          ? t.cases.openFree
           : card.payment === 'key'
-            ? `🔑 Открыть ключом (${card.keys})`
+            ? t.cases.openKey(card.keys)
             : `💰 ${formatNumber(card.price)}`;
       if (buy.textContent !== text) buy.textContent = text;
       buy.classList.toggle('disabled', card.payment === null);
       buy.classList.toggle('free', card.payment === 'free' || card.payment === 'key');
-      const waitText = card.freeIn !== null && card.freeIn > 0 ? `Бесплатно через ${formatWait(card.freeIn)}` : '';
+      const waitText = card.freeIn !== null && card.freeIn > 0 ? t.cases.freeIn(formatWait(card.freeIn)) : '';
       if (wait.textContent !== waitText) wait.textContent = waitText;
       if (note.textContent !== card.note) note.textContent = card.note;
     }
@@ -162,8 +163,8 @@ export class CasePanel {
   private reveal(result: CaseResultView): void {
     const title = element('div', 'case-result-title', result.title);
     title.style.color = result.color;
-    const again = button('buy-button', 'Открыть ещё', () => this.callbacks.onOpen(this.lastCaseId));
-    const back = button('plain-button', 'К кейсам', () => this.showShop());
+    const again = button('buy-button', t.cases.again, () => this.callbacks.onOpen(this.lastCaseId));
+    const back = button('plain-button', t.cases.back, () => this.showShop());
     const buttons = element('div', 'case-result-buttons');
     buttons.append(again, back);
     this.result.replaceChildren(title, element('div', 'case-result-detail', result.detail), buttons);
@@ -186,11 +187,11 @@ export class CasePanel {
         chip.style.color = r.color;
         odds.append(chip);
       }
-      const gold = element('span', 'odds-chip gold', `✨ Голда ${formatChance(card.gold)}`);
+      const gold = element('span', 'odds-chip gold', t.gold.chance(formatChance(card.gold)));
       odds.append(gold);
 
       const contents = element('details', 'case-contents');
-      contents.append(element('summary', '', 'Состав и шансы'));
+      contents.append(element('summary', '', t.cases.odds));
       const list = element('div', 'contents-list');
       for (const item of card.contents) {
         const row = element('div', 'contents-row');

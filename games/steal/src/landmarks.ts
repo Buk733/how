@@ -8,6 +8,7 @@ import type { Action, GameContext } from './context';
 import { SECRETS, type SecretDef } from './data/secrets';
 import { totalIncome } from './economy';
 import { SpeechBubble } from './entities/bubble';
+import { t } from './i18n';
 import { CAR_HEADING, GARDEN_PATH_X, PIER_PATH_X, SPOTS, TRAIL } from './layout';
 import { BEAR_TUNE } from './music';
 import { findSecret, SECRET_COUNT } from './secrets';
@@ -90,7 +91,7 @@ export class Landmarks {
     // --- камень на распутье: надпись по-сказочному, и она не врёт
     const stone = make('stone', sheets.fairyStone, 1.5);
     stone.run = () => {
-      stone.bubble.say('Налево пойдёшь — избушку найдёшь. Направо — медведю подпоёшь. Назад пойдёшь — брейнрота украдёшь', 6);
+      stone.bubble.say(t.landmarks.stone, 6);
       stone.busy = 1.5;
     };
 
@@ -103,7 +104,7 @@ export class Landmarks {
       hutFront = 10;
       hut.busy = 11.5;
       this.ctx.audio.blip('creak');
-      hut.bubble.say('Скрип-скрип!', 1.2);
+      hut.bubble.say(t.landmarks.hutCreak, 1.2);
     };
     hut.animate = (dt) => {
       hutStomp = Math.max(0, hutStomp - dt);
@@ -112,7 +113,7 @@ export class Landmarks {
         const beat = Math.floor(hutStomp * 6);
         hut.sprite.setFrame(beat % 2 ? 1 : 0);
         if (beat !== Math.floor((hutStomp + dt) * 6)) this.ctx.audio.blip('stomp');
-        if (hutStomp <= dt) hut.bubble.say('Заходи, гостем будешь!', 2.5);
+        if (hutStomp <= dt) hut.bubble.say(t.landmarks.hutWelcome, 2.5);
         return;
       }
       const front = hutFront > 0;
@@ -131,7 +132,7 @@ export class Landmarks {
     bear.run = () => {
       const duration = this.playTune();
       bear.busy = duration;
-      bear.bubble.say('♪ Эх, раз, ещё раз! ♪', Math.min(3, duration));
+      bear.bubble.say(t.landmarks.bear, Math.min(3, duration));
     };
     bear.animate = (dt) => {
       fireTime += dt;
@@ -143,7 +144,7 @@ export class Landmarks {
     const well = make('well', sheets.well, 2);
     well.run = () => {
       this.ctx.audio.blip('plop');
-      well.bubble.say(['Бульк! ✨', 'Желание загадано ✨', 'Сбудется! ✨'], 2);
+      well.bubble.say(t.landmarks.well, 2);
       well.busy = 1.5;
     };
 
@@ -154,7 +155,7 @@ export class Landmarks {
       rattle = 0.9;
       toilet.busy = 2;
       this.ctx.audio.blip('creak');
-      toilet.bubble.say(['Занято!', 'Занято! Кто там?!', 'Минуточку!'], 1.8);
+      toilet.bubble.say(t.landmarks.toilet, 1.8);
     };
     toilet.animate = (dt) => {
       rattle = Math.max(0, rattle - dt);
@@ -165,7 +166,7 @@ export class Landmarks {
     const fisher = make('fisher', sheets.fisherman, 2);
     let catchTimer = -1;
     fisher.run = () => {
-      fisher.bubble.say('Тсс! Рыбу распугаешь!', 1.6);
+      fisher.bubble.say(t.landmarks.fisherHush, 1.6);
       catchTimer = 1.8;
       fisher.busy = 4.5;
     };
@@ -175,7 +176,7 @@ export class Landmarks {
         catchTimer -= dt;
         if (before > 0.9 && catchTimer <= 0.9) this.ctx.audio.blip('splash');
         if (before > 0 && catchTimer <= 0) {
-          fisher.bubble.say(['Клюёт! 🐟', 'Во какая! 🐟', 'Ёрш попался 🐟'], 2.2);
+          fisher.bubble.say(t.landmarks.fisherBite, 2.2);
           this.ctx.audio.blip('plop');
         }
         fisher.sprite.setFrame(catchTimer > 0.9 ? 0 : catchTimer > 0 ? 1 : 2);
@@ -197,7 +198,7 @@ export class Landmarks {
       blink = 1.2;
       car.busy = 1.4;
       this.ctx.audio.blip('horn');
-      car.bubble.say('Би-бип!', 1.2);
+      car.bubble.say(t.landmarks.car, 1.2);
     };
     car.animate = (dt) => {
       blink = Math.max(0, blink - dt);
@@ -208,13 +209,13 @@ export class Landmarks {
     // указатели с надписями: куда идти за пасхалками
     const trailX = (TRAIL.minX + TRAIL.maxX) / 2;
     const signZ = CARPET.z - CARPET.width / 2 - 0.6;
-    this.signpost(sheets.signpost, trailX + 1.6, signZ, '↑ Тропинка в лес');
-    this.signpost(sheets.signpost, GARDEN_PATH_X + 1.5, signZ, '↑ Огород');
-    this.signpost(sheets.signpost, PIER_PATH_X - 1.5, signZ, '↑ Пруд');
+    this.signpost(sheets.signpost, trailX + 1.6, signZ, t.landmarks.signForest);
+    this.signpost(sheets.signpost, GARDEN_PATH_X + 1.5, signZ, t.landmarks.signGarden);
+    this.signpost(sheets.signpost, PIER_PATH_X - 1.5, signZ, t.landmarks.signPond);
     // надписи на воротах порталов
     for (const sign of ctx.world.portalSigns) {
       const label = this.ctx.labels.create('area-sign portal-sign');
-      label.element.textContent = 'Мемный портал';
+      label.element.textContent = t.landmarks.portal;
       label.anchor.copy(sign);
     }
   }
@@ -235,7 +236,7 @@ export class Landmarks {
     const target = best;
     const found = this.ctx.save.secrets.includes(target.secret.id);
     return {
-      view: { title: target.secret.action, detail: found ? `${target.secret.name} ✓` : '🔍 пасхалка?', enabled: target.busy <= 0 },
+      view: { title: target.secret.action, detail: found ? `${target.secret.name} ✓` : t.landmarks.unknown, enabled: target.busy <= 0 },
       run: () => this.use(target),
     };
   }
@@ -260,7 +261,7 @@ export class Landmarks {
     this.ctx.fx.sparkles(at, true);
     this.ctx.fx.coins(at.clone().setY(1), reward);
     this.ctx.hud.showBanner(
-      `🔍 Пасхалка ${save.secrets.length}/${SECRET_COUNT}: ${landmark.secret.name}! +${formatNumber(reward)}`,
+      t.landmarks.found(save.secrets.length, SECRET_COUNT, landmark.secret.name, formatNumber(reward)),
       '#73eff7',
       4000,
     );

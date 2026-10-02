@@ -88,6 +88,7 @@ export interface Payments {
 export interface LeaderboardEntry {
   /** Место с единицы. */
   readonly rank: number;
+  /** Публичное имя; пусто — игрок скрыл имя (игра подпишет сама). */
   readonly name: string;
   readonly score: number;
   readonly avatar: string | null;
@@ -110,6 +111,14 @@ export interface Leaderboard {
   getTable(): Promise<LeaderboardTable>;
 }
 
+/** Таблички демо-версии на месте рекламы, оплаты и входа — на языке игры. */
+export interface DemoTexts {
+  readonly fullscreenAd: string;
+  readonly rewardedAd: string;
+  readonly login: string;
+  readonly payment: string;
+}
+
 /** Товар для демо и разработки: на площадке его название и цену задаёт консоль. */
 export interface DemoProduct {
   readonly id: string;
@@ -125,6 +134,8 @@ export interface PlatformOptions {
   readonly leaderboard?: string;
   /** Товары для демо и разработки. */
   readonly demoCatalog?: readonly DemoProduct[];
+  /** Таблички демо-версии; функция — язык игры выбирается уже после запуска площадки. */
+  readonly demoTexts?: () => DemoTexts;
 }
 
 const SDK_URL = '/sdk.js';

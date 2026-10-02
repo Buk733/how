@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { element, spriteIcon } from './dom';
 import { Modal } from './modal';
 
@@ -35,7 +36,7 @@ export class AlbumPanel {
   private lastKey = '';
 
   constructor(container: HTMLElement, onClose: () => void) {
-    this.modal = new Modal(container, '📖 Альбом', onClose, 'album-panel');
+    this.modal = new Modal(container, t.album.title, onClose, 'album-panel');
     this.summary = element('div', 'album-summary');
     this.cards = element('div', 'album-cards');
     this.secretsTitle = element('div', 'modal-subtitle');
@@ -45,7 +46,7 @@ export class AlbumPanel {
       this.cards,
       this.secretsTitle,
       this.secrets,
-      element('div', 'modal-hint', 'Альбом остаётся навсегда — даже после перерождения'),
+      element('div', 'modal-hint', t.album.hint),
     );
   }
 
@@ -54,9 +55,9 @@ export class AlbumPanel {
     if (key === this.lastKey) return;
     this.lastKey = key;
     const foundSecrets = view.secrets.filter((s) => s.found).length;
-    this.summary.textContent = `Персонажи ${view.found}/${view.total} · «Голда» ${view.gold}/${view.total} · Пасхалки ${foundSecrets}/${view.secrets.length}`;
+    this.summary.textContent = t.album.summary(view.found, view.gold, view.total, foundSecrets, view.secrets.length);
     this.cards.replaceChildren(...view.cards.map((card) => this.card(card)));
-    this.secretsTitle.textContent = `🔍 Пасхалки ${foundSecrets}/${view.secrets.length}`;
+    this.secretsTitle.textContent = t.album.secrets(foundSecrets, view.secrets.length);
     this.secrets.replaceChildren(
       ...view.secrets.map((s) => element('div', s.found ? 'album-secret found' : 'album-secret', s.found ? `✓ ${s.name}` : `??? — ${s.hint}`)),
     );
@@ -68,7 +69,7 @@ export class AlbumPanel {
     card.append(
       spriteIcon(view.sprite, 56),
       element('span', 'album-name', view.found ? view.name : '???'),
-      element('span', view.gold ? 'album-gold got' : 'album-gold', view.gold ? '★ Голда' : '☆ Голда'),
+      element('span', view.gold ? 'album-gold got' : 'album-gold', view.gold ? t.album.goldGot : t.album.goldMissing),
     );
     return card;
   }

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { button, element } from './dom';
 import { Modal } from './modal';
 
@@ -33,14 +34,14 @@ export class ShopPanel {
   private lastKey = '';
 
   constructor(container: HTMLElement, onBuy: (id: string) => void, onClose: () => void) {
-    this.modal = new Modal(container, '🛒 Магазин', onClose, 'shop-panel');
+    this.modal = new Modal(container, t.shop.title, onClose, 'shop-panel');
     this.onBuy = onBuy;
     this.status = element('div', 'shop-status');
     this.list = element('div', 'shop-list');
     this.modal.body.append(
       this.status,
       this.list,
-      element('div', 'modal-hint', 'Оплата Янами через Яндекс Игры. Покупки навсегда сохраняются в аккаунте Яндекса.'),
+      element('div', 'modal-hint', t.shop.hint),
     );
   }
 
@@ -48,7 +49,7 @@ export class ShopPanel {
     const key = `${view.state}|${view.busy}|${view.cards.map((c) => `${c.id}${c.owned}${c.price}${c.detail}${c.currencyImage}`).join(',')}`;
     if (key === this.lastKey) return;
     this.lastKey = key;
-    const status = view.state === 'loading' ? 'Загружаем товары…' : view.state === 'unavailable' ? 'Магазин пока закрыт — загляни позже' : '';
+    const status = view.state === 'loading' ? t.shop.loading : view.state === 'unavailable' ? t.shop.closed : '';
     this.status.textContent = status;
     this.status.hidden = status === '';
     this.list.replaceChildren(...view.cards.map((card) => this.card(card, view.busy)));
@@ -59,7 +60,7 @@ export class ShopPanel {
     const text = element('div', 'shop-text');
     text.append(element('div', 'shop-name', view.name), element('div', 'shop-description', view.description));
     if (view.detail) text.append(element('div', 'shop-detail', view.detail));
-    card.append(element('span', 'shop-icon', view.icon), text, view.owned ? element('span', 'shop-owned', '✓ Куплено') : this.priceButton(view, busy));
+    card.append(element('span', 'shop-icon', view.icon), text, view.owned ? element('span', 'shop-owned', t.shop.owned) : this.priceButton(view, busy));
     return card;
   }
 
@@ -72,10 +73,10 @@ export class ShopPanel {
     if (view.currencyImage) {
       const icon = element('img', 'shop-currency');
       icon.src = view.currencyImage;
-      icon.alt = 'Ян';
+      icon.alt = t.shop.currency;
       buy.append(icon);
     } else {
-      buy.append(element('span', 'shop-currency-name', 'Ян'));
+      buy.append(element('span', 'shop-currency-name', t.shop.currency));
     }
     return buy;
   }

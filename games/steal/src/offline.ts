@@ -4,23 +4,24 @@ import { steadyIncome } from './economy';
 import type { SaveData } from './save';
 
 export interface OfflineEarnings {
-  /** Сколько секунд игрока не было на самом деле. */
+  /** Сколько секунд игрока не было. */
   readonly away: number;
-  /** Сколько из них засчитано (не больше OFFLINE.maxHours). */
-  readonly seconds: number;
+  /** Накопилось бы больше, но награда упёрлась в потолок — долю OFFLINE.maxShare монет игрока. */
+  readonly capped: boolean;
   readonly coins: number;
 }
 
 /**
  * Доход за время отсутствия — с последнего сохранения до now (мс): доля OFFLINE.rate
- * обычного дохода с печью и перерождениями, без ускорителя. null — игры ещё не было,
- * отлучка короткая или на полке никого.
+ * обычного дохода с печью и перерождениями, без ускорителя, но не больше доли OFFLINE.maxShare
+ * монет игрока. null — игры ещё не было, отлучка короткая, на полке никого или монет нет.
  */
 export function offlineEarnings(save: SaveData, now: number): OfflineEarnings | null {
   if (save.savedAt <= 0) return null;
   const away = (now - save.savedAt) / 1000;
   if (away < OFFLINE.minMinutes * 60) return null;
-  const seconds = Math.min(away, OFFLINE.maxHours * 3600);
-  const coins = Math.floor(steadyIncome(save) * OFFLINE.rate * seconds);
-  return coins > 0 ? { away, seconds, coins } : null;
+  const earned = Math.floor(steadyIncome(save) * OFFLINE.rate * away);
+  const cap = Math.floor(save.coins * OFFLINE.maxShare);
+  const coins = Math.min(earned, cap);
+  return coins > 0 ? { away, capped: earned > cap, coins } : null;
 }

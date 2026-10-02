@@ -7,18 +7,21 @@ import { CARPET, ECONOMY, NEIGHBORS, PIXELS_PER_UNIT } from './config';
 import { FOREST_WALLS, GROUND, LANDMARK_BOXES, LANDMARK_CIRCLES, OPEN_AREAS, pondColliders, SOUTH, WALK_BOUNDS } from './layout';
 import { buildPortals, type PortalTextures } from './portals';
 import { buildScenery, type ScenerySheets, type SceneryTextures } from './scenery';
+import { buildStoves, STOVE, type StovePlace, type StoveSheets, type StoveTextures } from './stove';
 
-export interface WorldTextures extends SceneryTextures, PortalTextures {
+export interface WorldTextures extends SceneryTextures, PortalTextures, StoveTextures {
   readonly grass: THREE.Texture;
   readonly planks: THREE.Texture;
   readonly logs: THREE.Texture;
   readonly carpet: THREE.Texture;
-  readonly stone: THREE.Texture;
+  readonly 'roof-shingles': THREE.Texture;
+  readonly 'roof-trim': THREE.Texture;
 }
 
-export interface DecorSheets extends ScenerySheets {
+export interface DecorSheets extends ScenerySheets, StoveSheets {
   readonly bucket: SpriteSheet;
-  readonly steam: SpriteSheet;
+  readonly tub: SpriteSheet;
+  readonly wallDecor: SpriteSheet;
   readonly kennel: SpriteSheet;
   readonly lantern: SpriteSheet;
   readonly woodpile: SpriteSheet;
@@ -44,7 +47,7 @@ export interface BanyaLayout {
   readonly kennel: THREE.Vector3;
   /** Где висит колокольчик — у входа, со стороны бани игрока. */
   readonly bell: THREE.Vector3;
-  /** Середина печи — оттуда валит пар. */
+  /** Камни на печи — оттуда валит пар. */
   readonly stove: THREE.Vector3;
 }
 
@@ -67,11 +70,19 @@ export interface World {
 /** Баня — сруб без передней стены, чтобы камера видела всё внутри. Размеры относительно её центра. */
 const BANYA = { halfWidth: 8.5, backZ: -7.5, frontZ: 1, wallHeight: 2.4, wall: 0.5 } as const;
 const BENCH = { halfWidth: 6.6, minZ: -6.9, maxZ: -5.5, height: 0.6 } as const;
+/** Конёк над задней стеной и резной наличник под ним (6 пикселей). */
+const RIDGE = { height: 0.25, depth: 1.3, trim: 0.375 } as const;
 const SLOT_SPACING = 1.6;
 const PLATE_Z = -4.2;
-const STOVE = { dx: 7.4, z: -6.4, width: 1.4, depth: 1.6, height: 1.5 } as const;
-/** Труба над печью, поленница у боковой стены, будка соседа. */
-const CHIMNEY = { size: 0.7, height: 1.4 } as const;
+/** Где печь в бане и куда поставить кадку с ковшом. */
+const STOVE_AT = { dx: 7.4, z: -6.4 } as const;
+const TUB_AT = { dx: 7.6, z: -3.7 } as const;
+/** Мелочи на задней стене (кадры wall-decor): веники и шапка у левого края полка. */
+const WALL_DECOR = [
+  { column: 0, dx: -7.6, y: 0.95, scale: 1 },
+  { column: 1, dx: -6.8, y: 0.9, scale: 0.8 },
+] as const;
+/** Поленница у боковой стены, будка соседа. */
 const WOODPILE_Z = -5.2;
 const KENNEL_DX = 10.6;
 
@@ -81,7 +92,14 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
   const circles: Circle[] = [...LANDMARK_CIRCLES, ...pondColliders()];
   const shadows: { x: number; z: number; diameter: number }[] = [];
   const statics = new Map<SpriteSheet, BatchItem[]>();
-  const emitters: PuffEmitter[] = [];
+  const stovePlaces: StovePlace[] = [];
+  const wallDecor = wallDecorMaterials(decor.wallDecor);
+  const decorPlane = new THREE.PlaneGeometry(1, 1);
+  const ridgeLength = BANYA.halfWidth * 2 + 1.4;
+  const eave = new THREE.MeshLambertMaterial({ color: '#6e4638' });
+  // грани коробки: +x, −x, верх, низ, перед, зад
+  const roofMaterials = [eave, eave, new THREE.MeshLambertMaterial({ map: tiled(textures['roof-shingles'], ridgeLength / unit(textures['roof-shingles']), 1) }), eave, eave, eave];
+  const trimMaterial = new THREE.MeshLambertMaterial({ map: tiled(textures['roof-trim'], ridgeLength / unit(textures['roof-trim']), 1), alphaTest: 0.5 });
   const barriers: THREE.Mesh[] = [];
   const flickers: { sprite: BillboardSprite; time: number }[] = [];
 
@@ -149,26 +167,26 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
     addBlock(textures.logs, [cx, h / 2, BANYA.backZ], [BANYA.halfWidth * 2 + BANYA.wall, h, BANYA.wall], tint);
     addBlock(textures.logs, [cx - BANYA.halfWidth, h / 2, wallZ], [BANYA.wall, h, wallLength], tint);
     addBlock(textures.logs, [cx + BANYA.halfWidth, h / 2, wallZ], [BANYA.wall, h, wallLength], tint);
-    const ridge = new THREE.Mesh(
-      new THREE.BoxGeometry(BANYA.halfWidth * 2 + 1.4, 0.25, 1.3),
-      new THREE.MeshLambertMaterial({ color: '#5a3a38' }),
-    );
+    // конёк крыши: сверху дранка, под передним краем — резной наличник
+    const ridgeLength = BANYA.halfWidth * 2 + 1.4;
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(ridgeLength, RIDGE.height, RIDGE.depth), roofMaterials);
     ridge.position.set(cx, h + 0.12, BANYA.backZ + 0.2);
-    scene.add(ridge);
+    const trim = new THREE.Mesh(new THREE.PlaneGeometry(ridgeLength, RIDGE.trim), trimMaterial);
+    trim.position.set(cx, h + 0.12 - RIDGE.height / 2 - RIDGE.trim / 2 + 0.02, BANYA.backZ + 0.2 + RIDGE.depth / 2 + 0.005);
+    scene.add(ridge, trim);
 
-    // полок и печь, над печью — труба с дымом
+    // полок, печь-каменка с трубой, кадка с ковшом и мелочи на стене
     addBlock(textures.planks, [cx, BENCH.height / 2, (BENCH.minZ + BENCH.maxZ) / 2], [BENCH.halfWidth * 2, BENCH.height, BENCH.maxZ - BENCH.minZ], tint);
-    addBlock(textures.stone, [cx + STOVE.dx, STOVE.height / 2, STOVE.z], [STOVE.width, STOVE.height, STOVE.depth]);
-    const fire = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.45), new THREE.MeshBasicMaterial({ color: '#ef7d57' }));
-    fire.position.set(cx + STOVE.dx, 0.45, STOVE.z + STOVE.depth / 2 + 0.01);
-    scene.add(fire);
-    const stove = new THREE.Vector3(cx + STOVE.dx, STOVE.height, STOVE.z);
-    emitters.push(new PuffEmitter(scene, decor.steam, stove.clone(), { count: 4, lifetime: 2.4, rise: 2.2, sway: 0.25 }));
-    const chimneyTop = h + 0.25 + CHIMNEY.height;
-    addBlock(textures.stone, [cx + STOVE.dx, h + 0.25 + CHIMNEY.height / 2, BANYA.backZ], [CHIMNEY.size, CHIMNEY.height, CHIMNEY.size], '#ffffff', false);
-    emitters.push(
-      new PuffEmitter(scene, decor.smoke, new THREE.Vector3(cx + STOVE.dx, chimneyTop, BANYA.backZ), { count: 5, lifetime: 3.6, rise: 3.4, sway: 0.5, drift: 0.6 }),
-    );
+    const stoveX = cx + STOVE_AT.dx;
+    stovePlaces.push({ x: stoveX, z: STOVE_AT.z, roofY: h + 0.245, roofZ: BANYA.backZ + 0.2 });
+    const stove = new THREE.Vector3(stoveX, STOVE.plinth.height + STOVE.body.height + 0.5, STOVE_AT.z);
+    place(decor.tub, cx + TUB_AT.dx, TUB_AT.z, 0.45, 0.9);
+    for (const d of WALL_DECOR) {
+      const plane = new THREE.Mesh(decorPlane, wallDecor[d.column]);
+      plane.scale.setScalar(d.scale);
+      plane.position.set(cx + d.dx, d.y, BANYA.backZ + BANYA.wall / 2 + 0.01);
+      scene.add(plane);
+    }
 
     // вёдра у стены
     place(decor.bucket, cx - BANYA.halfWidth + 1.1, -6.3, 0.4, 0.8);
@@ -226,6 +244,8 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
     place(decor.kennel, layout.kennel.x, layout.kennel.z - 0.85, 0.55, 1.3);
     return layout;
   });
+  const stoves = buildStoves(scene, textures, decor, stovePlaces, add);
+  boxes.push(...stoves.boxes);
   // кнопка щеколды — слева от входа в баню игрока
   const lockButton = new THREE.Vector3(-BANYA.halfWidth + 1.2, 0.03, BANYA.frontZ + 1.4);
 
@@ -249,7 +269,7 @@ export function buildWorld(scene: THREE.Scene, textures: WorldTextures, decor: D
     bounds: WALK_BOUNDS,
     portalSigns: portals.signs,
     update: (dt, focus) => {
-      for (const emitter of emitters) emitter.update(dt);
+      stoves.update(dt);
       const opacity = 0.28 + Math.sin(performance.now() / 150) * 0.08;
       for (const barrier of barriers) if (barrier.visible) (barrier.material as THREE.MeshBasicMaterial).opacity = opacity;
       portals.update(dt);
@@ -306,41 +326,12 @@ function buildGround(grass: THREE.Texture, tile: number): THREE.Mesh {
   return new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map, vertexColors: true }));
 }
 
-interface PuffOptions {
-  readonly count: number;
-  readonly lifetime: number;
-  /** Насколько поднимается клуб за жизнь. */
-  readonly rise: number;
-  /** Насколько раскачивается в стороны. */
-  readonly sway: number;
-  /** Насколько сносит ветром вбок. */
-  readonly drift?: number;
-}
-
-/** Клубы пара над печью или дыма из трубы: растут, поднимаются и появляются снова. */
-class PuffEmitter {
-  private readonly puffs: { sprite: BillboardSprite; age: number }[] = [];
-  private readonly origin: THREE.Vector3;
-  private readonly options: PuffOptions;
-
-  constructor(scene: THREE.Scene, sheet: SpriteSheet, origin: THREE.Vector3, options: PuffOptions) {
-    this.origin = origin;
-    this.options = options;
-    for (let i = 0; i < options.count; i++) {
-      const sprite = new BillboardSprite(sheet);
-      scene.add(sprite.object);
-      this.puffs.push({ sprite, age: (i / options.count) * options.lifetime });
-    }
-  }
-
-  update(dt: number): void {
-    const { lifetime, rise, sway, drift = 0 } = this.options;
-    for (const puff of this.puffs) {
-      puff.age = (puff.age + dt) % lifetime;
-      const t = puff.age / lifetime;
-      puff.sprite.setFrame(Math.min(2, Math.floor(t * 3)));
-      puff.sprite.object.visible = t < 0.92;
-      puff.sprite.object.position.set(this.origin.x + Math.sin(t * 6 + puff.age) * sway + t * drift, this.origin.y + t * rise, this.origin.z);
-    }
-  }
+/** Материалы мелочей на стене: по кадру листа, без освещения, чуть приглушены под цвет бревенчатой стены. */
+function wallDecorMaterials(sheet: SpriteSheet): THREE.MeshBasicMaterial[] {
+  return Array.from({ length: sheet.columns }, (_, i) => {
+    const map = sheet.texture.clone();
+    map.repeat.set(1 / sheet.columns, 1);
+    map.offset.set(i / sheet.columns, 0);
+    return new THREE.MeshBasicMaterial({ map, alphaTest: 0.5, color: '#e6ddd4' });
+  });
 }

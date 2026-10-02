@@ -1,4 +1,5 @@
 import { formatNumber } from '@engine/format';
+import { t } from '../i18n';
 import { button, element } from './dom';
 import { Modal } from './modal';
 
@@ -27,10 +28,10 @@ export class WelcomePanel {
   private readonly claimAd: HTMLButtonElement;
 
   constructor(container: HTMLElement, callbacks: WelcomeCallbacks) {
-    this.modal = new Modal(container, '👋 С возвращением!', callbacks.onClose, 'welcome-panel');
-    const lead = element('div', 'welcome-lead', 'Пока тебя не было ');
+    this.modal = new Modal(container, t.welcome.title, callbacks.onClose, 'welcome-panel');
+    const lead = element('div', 'welcome-lead', t.welcome.lead);
     this.away = element('b', 'welcome-away');
-    lead.append(this.away, ', персонажи парились и напарили:');
+    lead.append(this.away, t.welcome.leadEnd);
     this.coins = element('div', 'welcome-coins');
     this.note = element('div', 'welcome-note');
     this.claim = button('buy-button free', '', () => callbacks.onClaim());
@@ -44,8 +45,8 @@ export class WelcomePanel {
     this.away.textContent = view.away;
     this.coins.textContent = `💰 ${formatNumber(view.coins)}`;
     this.note.textContent = view.note;
-    this.claim.textContent = 'Забрать';
-    this.claimAd.textContent = `📺 Реклама → ×2 (💰 ${formatNumber(view.coins * 2)})`;
+    this.claim.textContent = t.welcome.claim;
+    this.claimAd.textContent = t.welcome.ad(formatNumber(view.coins * 2));
     this.setBusy(false);
   }
 

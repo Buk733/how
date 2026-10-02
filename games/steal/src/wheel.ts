@@ -1,6 +1,7 @@
 // Колесо удачи без графики: призы, шансы, таймер бесплатного спина и спины за рекламу.
 import type { Rng } from '@engine/rng';
 import { REWARDS } from './config';
+import { t, type Messages } from './i18n';
 import type { SaveData } from './save';
 
 export type WheelPrize =
@@ -12,23 +13,31 @@ export type WheelPrize =
 export interface WheelSector {
   readonly prize: WheelPrize;
   readonly icon: string;
+  /** Подпись на языке игры (i18n: wheel.labels). */
   readonly label: string;
   /** Вес: шанс сектора = вес / сумма весов (сумма — 100, то есть веса — это проценты). */
   readonly weight: number;
   readonly color: string;
 }
 
-/** Сектора по часовой стрелке, начиная сверху. Шансы всегда показаны под колесом. */
-export const WHEEL: readonly WheelSector[] = [
-  { prize: { kind: 'coins', minutes: 2, minCoins: 300 }, icon: '💰', label: 'Монеты', weight: 24, color: '#ffcd75' },
-  { prize: { kind: 'key', caseId: 'bath' }, icon: '🪣', label: 'Банный кейс', weight: 18, color: '#94b0c2' },
-  { prize: { kind: 'boost' }, icon: '⚡', label: '×2 доход', weight: 14, color: '#a7f070' },
-  { prize: { kind: 'coins', minutes: 6, minCoins: 800 }, icon: '💰', label: 'Много монет', weight: 16, color: '#ef7d57' },
-  { prize: { kind: 'key', caseId: 'meme' }, icon: '🎭', label: 'Мемный кейс', weight: 11, color: '#41a6f6' },
-  { prize: { kind: 'character' }, icon: '🎁', label: 'Персонаж', weight: 7, color: '#c07bff' },
-  { prize: { kind: 'coins', minutes: 20, minCoins: 2500 }, icon: '💰', label: 'Гора монет', weight: 7, color: '#38b764' },
-  { prize: { kind: 'key', caseId: 'gold' }, icon: '👑', label: 'Золотой кейс', weight: 3, color: '#ffd23f' },
+const SECTORS: readonly (Omit<WheelSector, 'label'> & { readonly labelKey: keyof Messages['wheel']['labels'] })[] = [
+  { prize: { kind: 'coins', minutes: 2, minCoins: 300 }, icon: '💰', labelKey: 'coins', weight: 24, color: '#ffcd75' },
+  { prize: { kind: 'key', caseId: 'bath' }, icon: '🪣', labelKey: 'bath', weight: 18, color: '#94b0c2' },
+  { prize: { kind: 'boost' }, icon: '⚡', labelKey: 'boost', weight: 14, color: '#a7f070' },
+  { prize: { kind: 'coins', minutes: 6, minCoins: 800 }, icon: '💰', labelKey: 'moreCoins', weight: 16, color: '#ef7d57' },
+  { prize: { kind: 'key', caseId: 'meme' }, icon: '🎭', labelKey: 'meme', weight: 11, color: '#41a6f6' },
+  { prize: { kind: 'character' }, icon: '🎁', labelKey: 'character', weight: 7, color: '#c07bff' },
+  { prize: { kind: 'coins', minutes: 20, minCoins: 2500 }, icon: '💰', labelKey: 'coinPile', weight: 7, color: '#38b764' },
+  { prize: { kind: 'key', caseId: 'gold' }, icon: '👑', labelKey: 'gold', weight: 3, color: '#ffd23f' },
 ];
+
+/** Сектора по часовой стрелке, начиная сверху. Шансы всегда показаны под колесом. */
+export const WHEEL: readonly WheelSector[] = SECTORS.map(({ labelKey, ...sector }) => ({
+  ...sector,
+  get label() {
+    return t.wheel.labels[labelKey];
+  },
+}));
 
 /** Шанс «Голды», если на колесе выпал персонаж. */
 export const WHEEL_CHARACTER_GOLD = 0.1;

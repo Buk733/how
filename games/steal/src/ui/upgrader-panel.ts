@@ -1,5 +1,6 @@
 import { formatNumber } from '@engine/format';
-import { button, element, formatChance, spriteIcon } from './dom';
+import { formatChance, t } from '../i18n';
+import { button, element, spriteIcon } from './dom';
 import { Modal } from './modal';
 
 export interface UpgraderUnitView {
@@ -54,7 +55,7 @@ export class UpgraderPanel {
 
   constructor(container: HTMLElement, callbacks: UpgraderCallbacks) {
     this.callbacks = callbacks;
-    this.modal = new Modal(container, '♨️ Парилка', () => callbacks.onClose(), 'upgrader-panel');
+    this.modal = new Modal(container, t.upgrader.title, () => callbacks.onClose(), 'upgrader-panel');
     this.sources = element('div', 'unit-row');
     this.targets = element('div', 'unit-row');
     this.sources.addEventListener('click', (event) => {
@@ -69,24 +70,24 @@ export class UpgraderPanel {
     const meter = element('div', 'heat-meter');
     this.zone = element('div', 'heat-zone');
     this.heat = element('div', 'heat-fill');
-    meter.append(this.zone, this.heat, element('span', 'heat-label ok', 'получится'), element('span', 'heat-label hot', 'перегрев'));
+    meter.append(this.zone, this.heat, element('span', 'heat-label ok', t.upgrader.ok), element('span', 'heat-label hot', t.upgrader.hot));
     this.chance = element('div', 'heat-chance');
     this.result = element('div', 'upgrader-result');
-    this.runButton = button('buy-button', '♨️ Парить!', () => !this.busy && callbacks.onRun());
+    this.runButton = button('buy-button', t.upgrader.run, () => !this.busy && callbacks.onRun());
     this.insureButton = button('ad-button', '', () => !this.busy && callbacks.onInsure());
     const buttons = element('div', 'wheel-buttons');
     buttons.append(this.runButton, this.insureButton);
 
     this.modal.body.append(
-      element('div', 'modal-subtitle', 'Кого отдать'),
+      element('div', 'modal-subtitle', t.upgrader.give),
       this.sources,
-      element('div', 'modal-subtitle', 'Во что превратить'),
+      element('div', 'modal-subtitle', t.upgrader.get),
       this.targets,
       meter,
       this.chance,
       this.result,
       buttons,
-      element('div', 'modal-hint', 'Не повезло — персонаж испарится. Страховка за рекламу его сохранит.'),
+      element('div', 'modal-hint', t.upgrader.hint),
     );
   }
 
@@ -102,23 +103,23 @@ export class UpgraderPanel {
       this.sources.replaceChildren(
         ...(view.sources.length > 0
           ? view.sources.map((s) => this.card(s, s.slot === view.selectedSlot, { slot: String(s.slot) }))
-          : [element('div', 'unit-empty', 'На полке пока никого нет')]),
+          : [element('div', 'unit-empty', t.upgrader.emptyShelf)]),
       );
       this.targets.replaceChildren(
         ...(view.selectedSlot === null
-          ? [element('div', 'unit-empty', 'Сначала выбери, кого отдать')]
+          ? [element('div', 'unit-empty', t.upgrader.pickFirst)]
           : view.targets.length > 0
             ? view.targets.map((t, i) => this.card(t, i === view.selectedTarget, { index: String(i) }, formatChance(t.chance)))
-            : [element('div', 'unit-empty', 'Это уже самый ценный персонаж!')]),
+            : [element('div', 'unit-empty', t.upgrader.best)]),
       );
-      const insureText = view.insured ? '🛡️ Страховка включена' : '📺 Реклама → страховка';
+      const insureText = view.insured ? t.upgrader.insured : t.upgrader.insure;
       this.insureButton.textContent = insureText;
       this.insureButton.classList.toggle('active', view.insured);
     }
     if (!this.busy) {
       const chance = target?.chance ?? 0;
       this.zone.style.width = `${chance * 100}%`;
-      this.chance.textContent = target ? `Шанс ${formatChance(chance)}` : 'Выбери обоих персонажей';
+      this.chance.textContent = target ? t.upgrader.chance(formatChance(chance)) : t.upgrader.pickBoth;
       this.runButton.classList.toggle('disabled', !target);
     }
   }
@@ -169,7 +170,7 @@ export class UpgraderPanel {
     Object.assign(card.dataset, data);
     card.style.setProperty('--rarity', unit.color);
     const name = element('div', 'unit-name', unit.gold ? `✨ ${unit.name}` : unit.name);
-    card.append(spriteIcon(unit.sprite, 48), name, element('div', 'unit-income', `+${formatNumber(unit.income)}/с`));
+    card.append(spriteIcon(unit.sprite, 48), name, element('div', 'unit-income', t.units.perSecond(formatNumber(unit.income))));
     if (badge) card.append(element('div', 'unit-badge', badge));
     return card;
   }

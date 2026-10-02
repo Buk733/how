@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { button, element } from './dom';
 import { Modal } from './modal';
 
@@ -35,15 +36,15 @@ export class LeaderboardPanel {
   private lastKey = '';
 
   constructor(container: HTMLElement, onLogin: () => void, onClose: () => void) {
-    this.modal = new Modal(container, '🏆 Рейтинг', onClose, 'leaderboard-panel');
+    this.modal = new Modal(container, t.leaderboard.title, onClose, 'leaderboard-panel');
     this.best = element('div', 'leaderboard-best');
     this.status = element('div', 'leaderboard-status');
     this.rows = element('div', 'leaderboard-rows');
     this.guest = element('div', 'leaderboard-guest');
-    this.login = button('buy-button free leaderboard-login', '🔑 Войти через Яндекс', onLogin);
-    this.guest.append(element('div', 'leaderboard-why', 'Войди в аккаунт Яндекса — попадёшь в рейтинг, а прогресс и покупки будут на всех твоих устройствах.'), this.login);
-    this.sample = element('div', 'modal-hint', 'Это пример таблицы: на Яндекс Играх здесь будут настоящие игроки.');
-    this.modal.body.append(this.best, this.status, this.rows, this.guest, this.sample, element('div', 'modal-hint', 'Место в рейтинге — по лучшему доходу в секунду за всё время, даже после перерождения.'));
+    this.login = button('buy-button free leaderboard-login', t.leaderboard.login, onLogin);
+    this.guest.append(element('div', 'leaderboard-why', t.leaderboard.why), this.login);
+    this.sample = element('div', 'modal-hint', t.leaderboard.sample);
+    this.modal.body.append(this.best, this.status, this.rows, this.guest, this.sample, element('div', 'modal-hint', t.leaderboard.rule));
   }
 
   render(view: LeaderboardView): void {
@@ -51,7 +52,7 @@ export class LeaderboardPanel {
     if (key === this.lastKey) return;
     this.lastKey = key;
     this.best.textContent = view.best;
-    const status = view.state === 'loading' ? 'Загружаем рейтинг…' : view.state === 'unavailable' ? 'Рейтинг сейчас недоступен — загляни позже' : view.rows.length === 0 ? 'Пока здесь никого — стань первым!' : '';
+    const status = view.state === 'loading' ? t.leaderboard.loading : view.state === 'unavailable' ? t.leaderboard.unavailable : view.rows.length === 0 ? t.leaderboard.empty : '';
     this.status.textContent = status;
     this.status.hidden = status === '';
     const rows: HTMLDivElement[] = [];

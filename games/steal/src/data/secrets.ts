@@ -1,4 +1,6 @@
-/** Пасхалка: интересная штука в мире, которую можно найти и потрогать. */
+import { secretText } from '../i18n';
+
+/** Пасхалка: интересная штука в мире, которую можно найти и потрогать. Тексты — на языке игры (i18n: secrets). */
 export interface SecretDef {
   /** Латиница: по нему находка хранится в сохранении. Не менять после релиза! */
   readonly id: string;
@@ -11,14 +13,17 @@ export interface SecretDef {
 }
 
 /** Все пасхалки по порядку. Где они стоят и что делают — в scenery.ts. */
-export const SECRETS: readonly SecretDef[] = [
-  { id: 'stone', name: 'Камень на распутье', action: 'Прочитать надпись', hint: 'у входа на лесную поляну' },
-  { id: 'hut', name: 'Избушка на курьих ножках', action: 'Избушка, повернись!', hint: 'на лесной поляне' },
-  { id: 'bear', name: 'Медведь с балалайкой', action: 'Попросить сыграть', hint: 'у костра на поляне' },
-  { id: 'well', name: 'Колодец желаний', action: 'Загадать желание', hint: 'в огороде' },
-  { id: 'toilet', name: 'Домик в огороде', action: 'Постучать', hint: 'в огороде, за грядками' },
-  { id: 'fisher', name: 'Рыбак на мостках', action: 'Спросить, как клюёт', hint: 'у пруда' },
-  { id: 'car', name: 'Старая «копейка»', action: 'Посигналить', hint: 'в кустах у пруда' },
-];
+export const SECRETS: readonly SecretDef[] = ['stone', 'hut', 'bear', 'well', 'toilet', 'fisher', 'car'].map((id) => ({
+  id,
+  get name() {
+    return secretText(id).name;
+  },
+  get action() {
+    return secretText(id).action;
+  },
+  get hint() {
+    return secretText(id).hint;
+  },
+}));
 
 export const SECRET_IDS: ReadonlySet<string> = new Set(SECRETS.map((s) => s.id));

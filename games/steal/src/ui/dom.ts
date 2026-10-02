@@ -41,10 +41,3 @@ export function formatWait(ms: number): string {
   const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
   return `${h > 0 ? `${h}:` : ''}${mm}:${String(s).padStart(2, '0')}`;
 }
-
-/** «46%» или «2,5%» для маленьких шансов. */
-export function formatChance(chance: number): string {
-  const percent = chance * 100;
-  const text = percent >= 10 || Number.isInteger(percent) ? String(Math.round(percent)) : String(Math.round(percent * 10) / 10);
-  return `${text.replace('.', ',')}%`;
-}

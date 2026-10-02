@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { element } from './dom';
 
 /**
@@ -16,7 +17,7 @@ export class Modal {
     const header = element('div', 'modal-header');
     const close = element('button', 'modal-close', '✕');
     close.type = 'button';
-    close.title = 'Закрыть';
+    close.title = t.hud.close;
     close.addEventListener('click', () => onClose());
     header.append(element('span', 'modal-title', title), close);
 

@@ -7,6 +7,7 @@ import type { GameContext } from './context';
 import type { Obstacles } from './entities/actor';
 import { SpeechBubble } from './entities/bubble';
 import { Dog, DogFrame } from './entities/dog';
+import { t } from './i18n';
 
 /**
  * away — собаки ещё нет (сосед не дорос); asleep — спит у будки; sit — сидит и сторожит;
@@ -88,7 +89,7 @@ export class GuardDog {
   hit(from: PointXZ): void {
     if (!this.present || this.state === 'scared') return;
     this.body.knock(this.position.x - from.x, this.position.z - from.z, 0.8);
-    this.bubble.say('Скуль!', 1.2);
+    this.bubble.say(t.dog.whine, 1.2);
     this.ctx.audio.blip('whimper');
     this.setState('scared', DOG.scared);
   }
@@ -115,7 +116,7 @@ export class GuardDog {
         body.show(DogFrame.Sit);
         if (alarmed && this.canReach(player.position) && !player.isStunned) {
           this.setState('bark', BARK_TIME);
-          this.bubble.say('Гав! Гав!', 1.2);
+          this.bubble.say(t.dog.bark, 1.2);
           this.ctx.audio.blip('bark');
           event = 'bark';
         } else if (this.timer <= 0) {
@@ -138,7 +139,7 @@ export class GuardDog {
         this.barkTimer -= dt;
         if (this.barkTimer <= 0) {
           this.barkTimer = 1.4;
-          this.bubble.say('Гав!', 0.8);
+          this.bubble.say(t.dog.barkOnce, 0.8);
           this.ctx.audio.blip('bark');
         }
         if (distanceXZ(this.position, player.position) < BITE_DISTANCE) {
@@ -180,7 +181,7 @@ export class GuardDog {
     const { player } = this.ctx;
     player.stun(DOG.biteStun);
     player.knock(player.position.x - this.position.x, player.position.z - this.position.z, DOG.biteKnock);
-    this.ctx.labels.float('Цап!', player.position.clone().setY(2), 'float-hit', 800);
+    this.ctx.labels.float(t.dog.bite, player.position.clone().setY(2), 'float-hit', 800);
     this.ctx.audio.blip('whack');
     this.ctx.fx.shake(0.25);
     this.setState('rest', DOG.biteRest);

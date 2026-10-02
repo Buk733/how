@@ -1,5 +1,12 @@
 const UNITS = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi'];
 
+/** Десятичный разделитель языка игры: «1,23K» по-русски, «1.23K» по-английски. */
+let decimalSeparator = ',';
+
+export function setDecimalSeparator(separator: string): void {
+  decimalSeparator = separator;
+}
+
 /**
  * Короткая запись больших чисел для интерфейса: 999 → «999», 1234 → «1,23K», 5 600 000 → «5,6M».
  * Округляет вниз, чтобы не показывать игроку больше, чем у него есть.
@@ -19,5 +26,5 @@ export function formatNumber(value: number): string {
   const floored = Math.floor(v * factor + 1e-9) / factor;
   let text = floored.toFixed(digits);
   if (digits > 0) text = text.replace(/0+$/, '').replace(/\.$/, '');
-  return sign + text.replace('.', ',') + UNITS[unit];
+  return sign + text.replace('.', decimalSeparator) + UNITS[unit];
 }

@@ -1,16 +1,29 @@
 import './style.css';
-import { initPlatform } from '@engine/platform/platform';
-import { LEADERBOARD, SAVE_KEY } from './config';
+import { initPlatform, type Platform } from '@engine/platform/platform';
+import { LANGUAGE_KEY, LEADERBOARD, SAVE_KEY } from './config';
 import { PRODUCTS } from './data/shop';
 import { Game } from './game';
-
-/** Языки интерфейса. Пока только русский (его площадка показывает для ru, be, kk, uk, uz); английский — в v1.0. */
-const LANGUAGES: readonly string[] = ['ru'];
+import { pickLanguage, setLanguage, t, type Language } from './i18n';
 
 const container = document.querySelector<HTMLElement>('#app');
 if (!container) throw new Error('В index.html нет элемента #app');
 
 const loading = document.querySelector<HTMLElement>('#loading');
+
+/**
+ * Язык игры. На площадке — тот, что сообщил SDK (требование Яндекса 2.14), для незнакомых — русский
+ * или английский по правилу 2.10. В демо и при разработке — выбранный игроком, ?lang=… или язык браузера.
+ */
+function chooseLanguage(platform: Platform): Language {
+  if (platform.kind !== 'local') return pickLanguage(platform.language);
+  let saved: string | null = null;
+  try {
+    saved = window.localStorage.getItem(LANGUAGE_KEY);
+  } catch {
+    // хранилище недоступно (приватный режим) — берём язык браузера
+  }
+  return pickLanguage(new URLSearchParams(window.location.search).get('lang') ?? saved ?? platform.language);
+}
 
 async function main(root: HTMLElement): Promise<void> {
   const platform = await initPlatform({
@@ -18,9 +31,13 @@ async function main(root: HTMLElement): Promise<void> {
     leaderboard: LEADERBOARD.name,
     // в демо и при разработке: на площадке названия и цены товаров задаёт Консоль
     demoCatalog: PRODUCTS.map((p) => ({ id: p.id, title: p.name, description: p.description, price: p.demoPrice })),
+    demoTexts: () => t.demo,
   });
-  // язык — тот, что сообщила площадка (требование Яндекса), если он у нас есть
-  document.documentElement.lang = LANGUAGES.includes(platform.language) ? platform.language : LANGUAGES[0];
+  const language = chooseLanguage(platform);
+  setLanguage(language);
+  document.documentElement.lang = language;
+  document.title = t.title;
+  if (loading) loading.textContent = t.loading;
   const game = await Game.create(root, platform);
   loading?.remove();
   // сначала «игра загрузилась» (LoadingAPI.ready), потом «игрок играет» (GameplayAPI.start)
@@ -31,5 +48,5 @@ async function main(root: HTMLElement): Promise<void> {
 
 main(container).catch((error: unknown) => {
   console.error(error);
-  if (loading) loading.textContent = 'Не удалось запустить игру. Обновите страницу.';
+  if (loading) loading.textContent = t.loadFailed;
 });

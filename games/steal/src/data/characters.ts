@@ -1,3 +1,4 @@
+import { characterName } from '../i18n';
 import type { Rarity } from './rarity';
 import { spriteUrl } from './sprites';
 import pantherSound from '../sounds/tantsui-pantera.mp3';
@@ -16,6 +17,7 @@ export interface CharacterSound {
 export interface CharacterDef {
   /** Латиница, без пробелов: по нему персонаж хранится в сохранении. Не менять после релиза! */
   readonly id: string;
+  /** Имя на языке игры (i18n: characters). */
   readonly name: string;
   readonly rarity: Rarity;
   /** Цена на дорожке, монеты. */
@@ -30,31 +32,34 @@ export interface CharacterDef {
   readonly sound?: CharacterSound;
 }
 
-type Entry = Omit<CharacterDef, 'sprite' | 'goldSprite'>;
+type Entry = Omit<CharacterDef, 'name' | 'sprite' | 'goldSprite'>;
 
 /**
  * Все персонажи игры. Чтобы добавить нового:
  * 1) нарисуйте его в tools/art/characters.mjs и запустите `npm run art` (золотая версия рисуется сама);
  * 2) положите звук в src/sounds;
- * 3) добавьте строку сюда.
+ * 3) добавьте строку сюда и имя во все словари i18n (characters).
  */
 const ENTRIES: readonly Entry[] = [
-  { id: 'panther', name: 'Танцуй Пантера', rarity: 'common', price: 25, income: 1, sound: { url: pantherSound } },
-  { id: 'anime-cook', name: 'Тянка в фартуке', rarity: 'common', price: 60, income: 2 },
-  { id: 'anime-knight', name: 'Аниме-рыцарь', rarity: 'common', price: 140, income: 4 },
-  { id: 'kotost', name: 'Котость', rarity: 'rare', price: 600, income: 10, sound: { url: kotostSound, offset: 3.2, duration: 3 } },
-  { id: 'diver', name: 'Нюхай Быстрее', rarity: 'rare', price: 1100, income: 17, sound: { url: diverSound } },
-  { id: 'baba-chai', name: 'Баба Чай', rarity: 'epic', price: 8000, income: 70, sound: { url: babaChaiSound, offset: 0.9, duration: 1.8 } },
-  { id: 'koch-bratan', name: 'Коч Братан', rarity: 'epic', price: 15000, income: 120 },
-  { id: 'hamam', name: 'Хамам', rarity: 'legendary', price: 100000, income: 600 },
-  { id: 'dark-drun', name: 'Тёмный Друн', rarity: 'legendary', price: 180000, income: 1000 },
-  { id: 'schoolboy', name: 'Школьник второй смены', rarity: 'legendary', price: 300000, income: 1600 },
-  { id: 'fat-mellstroy', name: 'Толстый Меллстрой', rarity: 'mythic', price: 1250000, income: 5000 },
-  { id: 'indian-mellstroy', name: 'Индеец Меллстрой', rarity: 'mythic', price: 2300000, income: 8500 },
+  { id: 'panther', rarity: 'common', price: 25, income: 1, sound: { url: pantherSound } },
+  { id: 'anime-cook', rarity: 'common', price: 60, income: 2 },
+  { id: 'anime-knight', rarity: 'common', price: 140, income: 4 },
+  { id: 'kotost', rarity: 'rare', price: 600, income: 10, sound: { url: kotostSound, offset: 3.2, duration: 3 } },
+  { id: 'diver', rarity: 'rare', price: 1100, income: 17, sound: { url: diverSound } },
+  { id: 'baba-chai', rarity: 'epic', price: 8000, income: 70, sound: { url: babaChaiSound, offset: 0.9, duration: 1.8 } },
+  { id: 'koch-bratan', rarity: 'epic', price: 15000, income: 120 },
+  { id: 'hamam', rarity: 'legendary', price: 100000, income: 600 },
+  { id: 'dark-drun', rarity: 'legendary', price: 180000, income: 1000 },
+  { id: 'schoolboy', rarity: 'legendary', price: 300000, income: 1600 },
+  { id: 'fat-mellstroy', rarity: 'mythic', price: 1250000, income: 5000 },
+  { id: 'indian-mellstroy', rarity: 'mythic', price: 2300000, income: 8500 },
 ];
 
 export const CHARACTERS: readonly CharacterDef[] = ENTRIES.map((entry) => ({
   ...entry,
+  get name() {
+    return characterName(entry.id);
+  },
   sprite: spriteUrl(entry.id),
   goldSprite: spriteUrl(`${entry.id}-gold`),
 }));

@@ -902,13 +902,6 @@ export function signpost() {
   return s.img;
 }
 
-/** Дым из трубы 8×8: 3 кадра серых клубов. */
-export function smoke() {
-  const s = sheet(8, 8, 3);
-  [2, 3, 3.6].forEach((r, i) => s.frame(i).ellipse(4, 4, r, r, (nx, ny) => (nx > 0.3 && ny > 0.3 ? C.slate : i === 2 ? '#b7c9d6' : C.silver)));
-  return s.img;
-}
-
 /** Пыль из-под ног 8×8: 3 кадра. */
 export function dust() {
   const s = sheet(8, 8, 3);

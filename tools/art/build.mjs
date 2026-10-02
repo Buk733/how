@@ -2,6 +2,7 @@
 // Картинки пишутся в games/steal/src/assets, превью всех листов — в tools/art/preview.png.
 import { fileURLToPath } from 'node:url';
 import { contactSheet, goldify } from './lib.mjs';
+import * as banya from './banya.mjs';
 import * as characters from './characters.mjs';
 import * as scenery from './scenery.mjs';
 import * as textures from './textures.mjs';
@@ -42,10 +43,21 @@ const outputs = {
   // предметы и декор
   'sprites/coin.png': textures.coin(),
   'sprites/plate.png': textures.plate(),
-  'sprites/steam.png': textures.steam(),
   'sprites/sparkle.png': textures.sparkle(),
   'sprites/bucket.png': textures.bucket(),
-  'sprites/smoke.png': scenery.smoke(),
+  // баня: каменка, мягкие клубы пара и дыма, мелочи на стене, кадка
+  'sprites/puff.png': banya.puff(),
+  'sprites/stove-stones.png': banya.stoveStones(),
+  'sprites/wall-decor.png': banya.wallDecor(),
+  'sprites/tub.png': banya.tub(),
+  'textures/stove-brick.png': banya.stoveBrick(),
+  'textures/stove-door.png': banya.stoveDoor(),
+  'textures/stove-top.png': banya.stoveTop(),
+  'textures/stove-pipe.png': banya.stovePipe(),
+  'textures/chimney-brick.png': banya.chimneyBrick(),
+  'textures/chimney-top.png': banya.chimneyTop(),
+  'textures/roof-shingles.png': banya.roofShingles(),
+  'textures/roof-trim.png': banya.roofTrim(),
   'sprites/dust.png': scenery.dust(),
   // лес
   'sprites/tree.png': scenery.trees(),
@@ -89,7 +101,6 @@ const outputs = {
   'textures/planks.png': textures.planks(),
   'textures/logs.png': textures.logs(),
   'textures/carpet.png': textures.carpet(),
-  'textures/stone.png': textures.stone(),
   'textures/water.png': scenery.water(),
   // объёмные модели: старая «копейка» (ряд 0 — голубая, ряд 1 — вишнёвая), трактор, портал с воротами
   'textures/car-body-side.png': vehicles.carBodySide(),

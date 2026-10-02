@@ -1,4 +1,5 @@
-import { button, element, formatChance, formatWait } from './dom';
+import { formatChance, t } from '../i18n';
+import { button, element, formatWait } from './dom';
 import { Modal } from './modal';
 
 export interface WheelSectorView {
@@ -54,11 +55,11 @@ export class WheelPanel {
     }
     this.edges.push(TURN);
 
-    this.modal = new Modal(container, '🎡 Колесо удачи', () => callbacks.onClose(), 'wheel-panel');
+    this.modal = new Modal(container, t.wheel.title, () => callbacks.onClose(), 'wheel-panel');
     const stage = element('div', 'wheel-stage');
     this.canvas = element('canvas', 'wheel-canvas');
     stage.append(this.canvas, element('div', 'wheel-pointer', '▼'));
-    this.result = element('div', 'wheel-result', 'Крути колесо — приз сразу твой');
+    this.result = element('div', 'wheel-result', t.wheel.idle);
     this.freeButton = button('buy-button free', '', () => callbacks.onSpin('free'));
     this.adButton = button('ad-button', '', () => callbacks.onSpin('ad'));
     const buttons = element('div', 'wheel-buttons');
@@ -72,7 +73,7 @@ export class WheelPanel {
       row.append(swatch, element('span', 'wheel-odds-label', `${sector.icon} ${sector.label}`), element('span', 'wheel-odds-chance', formatChance(sector.chance)));
       odds.append(row);
     }
-    this.modal.body.append(stage, this.result, buttons, element('div', 'modal-subtitle', 'Шансы'), odds);
+    this.modal.body.append(stage, this.result, buttons, element('div', 'modal-subtitle', t.wheel.odds), odds);
     this.draw();
   }
 
@@ -81,10 +82,10 @@ export class WheelPanel {
   }
 
   render(view: WheelView): void {
-    const freeText = view.free ? '🎡 Крутить бесплатно' : `Бесплатно через ${formatWait(view.freeIn)}`;
+    const freeText = view.free ? t.wheel.free : t.wheel.freeIn(formatWait(view.freeIn));
     if (this.freeButton.textContent !== freeText) this.freeButton.textContent = freeText;
     this.freeButton.classList.toggle('disabled', !view.free || this.spinning);
-    const adText = view.adLeft > 0 ? `📺 Реклама → ещё спин (${view.adLeft})` : '📺 Спины за рекламу — завтра';
+    const adText = view.adLeft > 0 ? t.wheel.ad(view.adLeft) : t.wheel.adTomorrow;
     if (this.adButton.textContent !== adText) this.adButton.textContent = adText;
     this.adButton.classList.toggle('disabled', view.adLeft === 0 || this.spinning);
   }
@@ -92,7 +93,7 @@ export class WheelPanel {
   /** Крутит колесо до сектора index и показывает text. */
   spinTo(index: number, text: string): void {
     this.stop();
-    this.result.textContent = 'Крутится…';
+    this.result.textContent = t.wheel.spinning;
     const from = this.edges[index];
     const width = this.edges[index + 1] - from;
     // точка сектора, которая окажется под стрелкой, — не у самой границы

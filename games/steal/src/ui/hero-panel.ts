@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { element } from './dom';
 import { Modal } from './modal';
 
@@ -35,13 +36,13 @@ export class HeroPanel {
   private lastKey = '';
 
   constructor(container: HTMLElement, onPick: (id: string) => void, onClose: () => void) {
-    this.modal = new Modal(container, '👤 Герой', onClose, 'hero-panel');
+    this.modal = new Modal(container, t.heroes.title, onClose, 'hero-panel');
     this.list = element('div', 'hero-list');
     this.list.addEventListener('click', (event) => {
       const card = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-id]');
       if (card?.dataset.id) onPick(card.dataset.id);
     });
-    this.modal.body.append(this.list, element('div', 'modal-hint', 'Сменить героя можно в любой момент — бесплатно'));
+    this.modal.body.append(this.list, element('div', 'modal-hint', t.heroes.hint));
   }
 
   render(cards: readonly HeroCardView[]): void {
@@ -59,7 +60,7 @@ export class HeroPanel {
       heroIcon(view.sheetUrl, HERO_FRAME * 4, view.selected),
       element('span', 'hero-name', view.name),
       element('span', 'hero-description', view.description),
-      element('span', 'hero-status', view.selected ? '✓ Выбран' : 'Выбрать'),
+      element('span', 'hero-status', view.selected ? t.heroes.selected : t.heroes.select),
     );
     return card;
   }

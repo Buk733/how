@@ -6,6 +6,7 @@ import type { GameContext } from './context';
 import { CASES, caseById, FREE_CASE_ID } from './data/cases';
 import { CHARACTERS, type CharacterDef } from './data/characters';
 import { HEROES, isHeroId, type HeroId } from './data/heroes';
+import { t } from './i18n';
 import { spriteUrl } from './data/sprites';
 import { RARITIES } from './data/rarity';
 import { sellValue, totalIncome, unitIncome, unitName } from './economy';
@@ -225,7 +226,7 @@ export class Menus {
       return {
         id,
         icon: UPGRADES[id].icon,
-        name: UPGRADES[id].name,
+        name: t.upgrades.names[id],
         level,
         maxLevel: maxLevel(id),
         now: describeUpgrade(id, level),
@@ -242,7 +243,7 @@ export class Menus {
       return;
     }
     this.ctx.audio.blip('unlock');
-    this.ctx.labels.float(`${UPGRADES[id].icon} ур. ${this.ctx.save.upgrades[id]}`, this.ctx.player.position.clone().setY(2.2), 'float-coins');
+    this.ctx.labels.float(t.upgrades.float(UPGRADES[id].icon, this.ctx.save.upgrades[id]), this.ctx.player.position.clone().setY(2.2), 'float-coins');
     this.ctx.markDirty(true);
   }
 
@@ -264,7 +265,7 @@ export class Menus {
       payment: casePayment(save, box, now),
       keys: save.keys[box.id] ?? 0,
       freeIn: box.id === FREE_CASE_ID ? freeCaseIn(save, now) : null,
-      note: first && box.id === FREE_CASE_ID ? 'Первый кейс — точно редкий или лучше!' : '',
+      note: first && box.id === FREE_CASE_ID ? t.cases.firstNote : '',
     }));
   }
 
@@ -291,7 +292,7 @@ export class Menus {
     const resolve = (): CaseResultView => {
       this.settle();
       return {
-        title: `Выпало: ${unitName(drop.def, drop.gold)}`,
+        title: t.cases.dropped(unitName(drop.def, drop.gold)),
         color: drop.gold ? GOLD_COLOR : RARITIES[drop.def.rarity].color,
         gold: drop.gold,
         detail: placement,
@@ -310,10 +311,10 @@ export class Menus {
   }
 
   private placementText(result: RewardResult): string {
-    if (result.kind === 'sold') return `Полок полный — продан за 💰 ${formatNumber(result.coins)}`;
-    if (!result.replaced) return 'Идёт в баню и садится на полок';
+    if (result.kind === 'sold') return t.cases.sold(formatNumber(result.coins));
+    if (!result.replaced) return t.cases.seated;
     const { def, gold } = result.replaced;
-    return `Сел вместо «${unitName(def, gold)}» (+💰 ${formatNumber(sellValue(def, gold))})`;
+    return t.cases.replaced(unitName(def, gold), formatNumber(sellValue(def, gold)));
   }
 
   // ---------------------------------------------------------------- колесо удачи
@@ -340,7 +341,7 @@ export class Menus {
     switch (prize.kind) {
       case 'coins': {
         const coins = coinsPrize(prize, totalIncome(save, Date.now()));
-        text = `${icon} ${formatNumber(coins)} монет!`;
+        text = t.wheel.coins(icon, formatNumber(coins));
         this.pending = () => {
           save.coins += coins;
           this.ctx.labels.float(`+${formatNumber(coins)}`, this.ctx.player.position.clone().setY(2.2), 'float-coins');
@@ -348,21 +349,20 @@ export class Menus {
         break;
       }
       case 'key': {
-        const box = caseById(prize.caseId);
-        text = `🔑 Ключ: «${box?.name ?? prize.caseId}» бесплатно — открой в кейсах!`;
+        text = t.wheel.key(caseById(prize.caseId)?.name ?? prize.caseId);
         this.pending = () => {
           save.keys[prize.caseId] = (save.keys[prize.caseId] ?? 0) + 1;
         };
         break;
       }
       case 'boost':
-        text = `⚡ ×2 доход на ${REWARDS.boostMinutes} минут!`;
+        text = t.wheel.boost(REWARDS.boostMinutes);
         this.pending = () => startBoost(save, Date.now());
         break;
       case 'character': {
         const def = characterNearTier(rng, CHARACTERS, Math.max(0, playerPower(save.slots)));
         const gold = rng.chance(WHEEL_CHARACTER_GOLD);
-        text = `${icon} «${unitName(def, gold)}» идёт к тебе в баню!`;
+        text = t.wheel.character(icon, unitName(def, gold));
         this.pending = () => this.home.placeReward(def, gold);
         break;
       }
@@ -373,7 +373,7 @@ export class Menus {
       this.ctx.audio.blip('win');
       this.ctx.markDirty(true);
     };
-    this.wheel.spinTo(index, `Выпало: ${text}`);
+    this.wheel.spinTo(index, t.wheel.result(text));
   }
 
   // ---------------------------------------------------------------- парилка
@@ -414,7 +414,7 @@ export class Menus {
     this.upgrader.render({
       sources: sources.map((s) => ({ ...view(s.def, s.gold), slot: s.slot })),
       selectedSlot: sources.some((s) => s.slot === this.upgraderSlot) ? this.upgraderSlot : null,
-      targets: targets.map((t) => ({ ...view(t.def, t.gold), chance: t.chance })),
+      targets: targets.map((target) => ({ ...view(target.def, target.gold), chance: target.chance })),
       selectedTarget: this.upgraderTarget,
       insured: this.insured,
     });
@@ -434,7 +434,7 @@ export class Menus {
     this.insured = false;
     const from = unitName(source.def, source.gold);
     const to = unitName(target.def, target.gold);
-    const text = success ? `Получилось! «${from}» стал «${to}»` : insured ? `Перегрев! Страховка спасла «${from}»` : `Перегрев! «${from}» испарился`;
+    const text = success ? t.upgrader.success(from, to) : insured ? t.upgrader.saved(from) : t.upgrader.lost(from);
     this.pending = () => {
       const slot = this.ctx.save.slots[source.slot];
       // пока шёл жар, персонажа могли украсть — тогда превращать некого

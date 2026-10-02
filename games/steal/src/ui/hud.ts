@@ -1,4 +1,5 @@
 import { formatNumber } from '@engine/format';
+import { t } from '../i18n';
 import { button, element, formatWait } from './dom';
 import { heroIcon } from './hero-panel';
 
@@ -20,18 +21,18 @@ export interface ActionView {
   readonly enabled: boolean;
 }
 
-/** Кнопки окон слева: значок, подпись и клавиша. */
-const MENUS: readonly { readonly id: MenuId; readonly icon: string; readonly text: string; readonly key: string }[] = [
-  { id: 'upgrades', icon: '⚡', text: 'Прокачка', key: 'U' },
-  { id: 'cases', icon: '🎁', text: 'Кейсы', key: 'K' },
-  { id: 'wheel', icon: '🎡', text: 'Колесо', key: 'L' },
-  { id: 'upgrader', icon: '♨️', text: 'Парилка', key: 'P' },
-  { id: 'daily', icon: '📅', text: 'Награды', key: 'N' },
-  { id: 'album', icon: '📖', text: 'Альбом', key: 'C' },
-  { id: 'leaderboard', icon: '🏆', text: 'Рейтинг', key: 'T' },
-  { id: 'shop', icon: '🛒', text: 'Магазин', key: 'M' },
+/** Кнопки окон слева: значок и клавиша, подпись — на языке игры (i18n: hud.menus). */
+const MENUS: readonly { readonly id: Exclude<MenuId, 'hero' | 'welcome'>; readonly icon: string; readonly key: string }[] = [
+  { id: 'upgrades', icon: '⚡', key: 'U' },
+  { id: 'cases', icon: '🎁', key: 'K' },
+  { id: 'wheel', icon: '🎡', key: 'L' },
+  { id: 'upgrader', icon: '♨️', key: 'P' },
+  { id: 'daily', icon: '📅', key: 'N' },
+  { id: 'album', icon: '📖', key: 'C' },
+  { id: 'leaderboard', icon: '🏆', key: 'T' },
+  { id: 'shop', icon: '🛒', key: 'M' },
   // последней: на узком экране последняя нечётная кнопка — во всю ширину, длинная подпись помещается
-  { id: 'rebirth', icon: '🔄', text: 'Перерождение', key: 'R' },
+  { id: 'rebirth', icon: '🔄', key: 'R' },
 ];
 
 /** Интерфейс поверх игры: монеты, доход, кнопки действия, веника и окон, объявления. */
@@ -82,8 +83,9 @@ export class Hud {
     const menus = element('div', 'hud-menus');
     for (const menu of MENUS) {
       const menuButton = button('hud-menu', '', () => callbacks.onMenu(menu.id));
-      menuButton.title = menu.text;
-      menuButton.append(element('span', 'hud-menu-icon', menu.icon), element('span', 'hud-menu-text', menu.text), element('kbd', 'hud-key', menu.key));
+      const text = t.hud.menus[menu.id];
+      menuButton.title = text;
+      menuButton.append(element('span', 'hud-menu-icon', menu.icon), element('span', 'hud-menu-text', text), element('kbd', 'hud-key', menu.key));
       this.menus.set(menu.id, menuButton);
       menus.append(menuButton);
     }
@@ -93,10 +95,10 @@ export class Hud {
     this.mute = button('hud-round hud-mute', '', () => callbacks.onToggleMute());
     this.music = button('hud-round hud-music', '🎵', () => callbacks.onToggleMusic());
     this.hero = button('hud-round hud-hero', '', () => callbacks.onMenu('hero'));
-    this.hero.title = 'Герой';
+    this.hero.title = t.hud.hero;
 
     this.broom = button('hud-broom', '🧹', () => callbacks.onAttack(), true);
-    this.broom.title = 'Шлёпнуть веником';
+    this.broom.title = t.hud.broom;
     this.broom.append(element('kbd', 'hud-key', 'F'));
 
     this.action = button('hud-action', '', () => callbacks.onAction(), true);
@@ -118,13 +120,13 @@ export class Hud {
     }
     if (income !== this.lastIncome) {
       this.lastIncome = income;
-      this.income.textContent = income > 0 ? `+${formatNumber(income)} в секунду` : 'Купи персонажа на дорожке';
+      this.income.textContent = income > 0 ? t.hud.income(formatNumber(income)) : t.hud.noIncome;
     }
   }
 
   /** Ускоритель «×2 к доходу»: сколько осталось (0 — не действует). */
   setBoost(msLeft: number): void {
-    const text = msLeft > 0 ? `⚡ ×2 доход · ${formatWait(msLeft)}` : '';
+    const text = msLeft > 0 ? t.hud.boost(formatWait(msLeft)) : '';
     if (text === this.lastBoost) return;
     this.lastBoost = text;
     this.boost.hidden = text === '';
@@ -170,9 +172,31 @@ export class Hud {
     if (menuButton) menuButton.hidden = !visible;
   }
 
+  /**
+   * Выбор языка: круглая кнопка с кодом языка, под ней — обычный список (на телефоне откроется системный).
+   * Только в демо и при разработке: на площадке язык задаёт SDK.
+   */
+  showLanguages(languages: readonly { readonly code: string; readonly name: string }[], current: string, onPick: (code: string) => void): void {
+    const picker = element('label', 'hud-round hud-lang');
+    picker.title = t.hud.language;
+    const select = element('select', 'hud-lang-select');
+    select.setAttribute('aria-label', t.hud.language);
+    for (const { code, name } of languages) {
+      const option = element('option', '', name);
+      option.value = code;
+      option.selected = code === current;
+      select.append(option);
+    }
+    // касание списка не должно запускать джойстик и удар мышью
+    select.addEventListener('pointerdown', (event) => event.stopPropagation());
+    select.addEventListener('change', () => onPick(select.value));
+    picker.append(element('span', 'hud-lang-code', `🌐\n${current.toUpperCase()}`), select);
+    this.root.append(picker);
+  }
+
   setMuted(muted: boolean): void {
     this.mute.textContent = muted ? '🔇' : '🔊';
-    this.mute.title = muted ? 'Включить звук' : 'Выключить звук';
+    this.mute.title = muted ? t.hud.soundOn : t.hud.soundOff;
   }
 
   /** Портрет героя на круглой кнопке. */
@@ -182,7 +206,7 @@ export class Hud {
 
   setMusic(on: boolean): void {
     this.music.classList.toggle('off', !on);
-    this.music.title = on ? 'Выключить музыку' : 'Включить музыку';
+    this.music.title = on ? t.hud.musicOff : t.hud.musicOn;
   }
 
   /**
