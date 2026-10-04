@@ -40,6 +40,7 @@ const fragmentShader = /* glsl */ `
     vec4 texel = texture2D(map, vUv);
     if (texel.a < 0.5) discard;
     gl_FragColor = vec4(texel.rgb, 1.0);
+    #include <tonemapping_fragment>
     #include <colorspace_fragment>
     #include <fog_fragment>
   }

@@ -6,13 +6,14 @@ import { renderSongGradually } from '@engine/chiptune';
 import { formatNumber } from '@engine/format';
 import { Input } from '@engine/input';
 import { LabelLayer, type Label } from '@engine/labels';
+import { applyColorGrade, gradeColor, ScreenLight } from '@engine/light';
 import { isDemoBuild, type Platform, type ShopPurchase } from '@engine/platform/platform';
 import { Rng } from '@engine/rng';
 import type { SpriteSheet, SpriteSheetDef } from '@engine/sprite';
 import { Broom } from './broom';
 import { Carpet, RARE_THEME } from './carpet';
 import { addToCollection } from './collection';
-import { AUDIO, BROOM, CAMERA, CARPET, FOG, LANGUAGE_KEY, PLAYER, REBIRTH, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
+import { AUDIO, BROOM, CAMERA, CARPET, FOG, LANGUAGE_KEY, LIGHT, PLAYER, REBIRTH, RENDER_SHORT_SIDE, SKY_COLOR } from './config';
 import type { Action, GameContext, TutorialEvent } from './context';
 import { CHARACTERS, type CharacterDef } from './data/characters';
 import { heroById, type HeroId } from './data/heroes';
@@ -166,6 +167,7 @@ export class Game implements GameContext {
   private readonly platform: Platform;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly cameraRig = new FollowCamera(CAMERA);
+  private readonly screenLight = new ScreenLight(LIGHT.screen);
   private readonly input: Input;
   private readonly characterSheets: ReadonlyMap<string, SpriteSheet>;
   private readonly heroSheets: Readonly<Record<HeroId, SpriteSheet>>;
@@ -255,8 +257,12 @@ export class Game implements GameContext {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: false });
     container.append(this.renderer.domElement);
-    this.scene.background = new THREE.Color(SKY_COLOR);
-    this.scene.fog = new THREE.Fog(SKY_COLOR, FOG.near, FOG.far);
+    applyColorGrade(this.renderer, LIGHT.grade);
+    // небо и туман подмешиваются после цветокоррекции — их цвет корректируем заранее
+    const sky = gradeColor(LIGHT.grade, SKY_COLOR);
+    this.scene.background = new THREE.Color(sky);
+    this.scene.fog = new THREE.Fog(sky, FOG.near, FOG.far);
+    this.scene.add(this.screenLight.mesh);
     this.scene.add(new THREE.HemisphereLight('#ffffff', '#6a8f5a', 2.2));
     const sun = new THREE.DirectionalLight('#fff1d6', 1.8);
     sun.position.set(-4, 10, 6);
@@ -352,6 +358,7 @@ export class Game implements GameContext {
 
   private update(dt: number): void {
     this.time += dt;
+    this.screenLight.update(dt);
     const zoom = this.input.consumeZoom();
     if (zoom) this.cameraRig.zoom(zoom);
 
@@ -870,6 +877,7 @@ export class Game implements GameContext {
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(width, height);
     this.cameraRig.setAspect(width / height);
+    this.screenLight.setAspect(width / height);
   }
 
   /** Для отладки из консоли браузера (только в режиме разработки). */
