@@ -143,8 +143,11 @@ export function buildStoves(
   };
 }
 
-/** Мягкое пятно света: тёплый центр, к краям сходит на нет. */
-function glowTexture(): THREE.Texture {
+let glow: THREE.Texture | null = null;
+
+/** Мягкое пятно света: тёплый центр, к краям сходит на нет. Одно на печи и костёр. */
+export function glowTexture(): THREE.Texture {
+  if (glow) return glow;
   const size = 64;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
@@ -157,7 +160,7 @@ function glowTexture(): THREE.Texture {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
   }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
+  glow = new THREE.CanvasTexture(canvas);
+  glow.colorSpace = THREE.SRGBColorSpace;
+  return glow;
 }

@@ -3,6 +3,7 @@ import { renderSong, songDuration } from '@engine/chiptune';
 import { formatNumber } from '@engine/format';
 import { distanceXZ, type PointXZ } from '@engine/math';
 import { BillboardSprite, type SpriteSheet } from '@engine/sprite';
+import { Campfire } from './campfire';
 import { AUDIO, CARPET } from './config';
 import type { Action, GameContext } from './context';
 import { SECRETS, type SecretDef } from './data/secrets';
@@ -26,6 +27,8 @@ export interface LandmarkSheets {
   readonly hut: SpriteSheet;
   readonly bear: SpriteSheet;
   readonly campfire: SpriteSheet;
+  /** Клубы дыма над костром. */
+  readonly puff: SpriteSheet;
   readonly well: SpriteSheet;
   readonly outhouse: SpriteSheet;
   readonly fairyStone: SpriteSheet;
@@ -80,12 +83,12 @@ export class Landmarks {
       this.landmarks.push(landmark);
       return landmark;
     };
-    /** Пасхалка-спрайт. */
+    /** Пасхалка-спрайт. Тот же объект, что в списке (не копия): иначе run и animate, заданные ниже, не вызывались бы. */
     const make = (id: keyof typeof SPOTS & string, sheet: SpriteSheet, bubbleHeight: number) => {
       const sprite = new BillboardSprite(sheet);
       sprite.object.position.set(SPOTS[id].x, 0, SPOTS[id].z);
       ctx.scene.add(sprite.object);
-      return { ...register(id, bubbleHeight), sprite };
+      return Object.assign(register(id, bubbleHeight), { sprite });
     };
 
     // --- камень на распутье: надпись по-сказочному, и она не врёт
@@ -125,18 +128,14 @@ export class Landmarks {
 
     // --- медведь в ушанке с балалайкой у костра
     const bear = make('bear', sheets.bear, 2.2);
-    const campfire = new BillboardSprite(sheets.campfire);
-    campfire.object.position.set(SPOTS.campfire.x, 0, SPOTS.campfire.z);
-    ctx.scene.add(campfire.object);
-    let fireTime = 0;
+    const campfire = new Campfire(ctx.scene, sheets, SPOTS.campfire);
     bear.run = () => {
       const duration = this.playTune();
       bear.busy = duration;
       bear.bubble.say(t.landmarks.bear, Math.min(3, duration));
     };
     bear.animate = (dt) => {
-      fireTime += dt;
-      campfire.setFrame(Math.floor(fireTime * 8) % 3);
+      campfire.update(dt);
       bear.sprite.setFrame(bear.busy > 0 ? 1 + (Math.floor(bear.time * 8) % 2) : Math.sin(bear.time * 0.9) > 0.96 ? 1 : 0);
     };
 

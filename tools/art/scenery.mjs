@@ -415,24 +415,91 @@ export function bear() {
   return s.img;
 }
 
-/** Костёр 16×16: 3 кадра пламени. */
+/** Сколько кадров у костра: пламя — замкнутый цикл, кадры идут по кругу. */
+const CAMPFIRE_FRAMES = 8;
+
+/**
+ * Костёр 20×26: 8 кадров живого пламени. Языки огня растут и опадают каждый в своём ритме и клонятся
+ * то влево, то вправо, сверху отрываются и тают лепестки огня, под ними перемигиваются угли.
+ * Цвет — по «жару»: у основания в середине почти белый, дальше жёлтый, оранжевый, к краям и кончикам красный.
+ * Летящие искры, отсвет на земле и дым добавляет игра (campfire.ts).
+ */
 export function campfire() {
-  const s = sheet(16, 16, 3);
-  const flames = [
-    [[8, 4, 3.5, 6.5], [5, 8, 2, 3.5], [11, 7, 2, 4]],
-    [[8, 5, 3, 6], [5, 7, 2, 4.5], [11, 8, 2, 3]],
-    [[8, 4.5, 3.5, 6], [5, 9, 2, 3], [11, 6.5, 2, 4.5]],
+  const [W, H, N] = [20, 26, CAMPFIRE_FRAMES];
+  const s = sheet(W, H, N);
+  const base = 20;
+  // язык: x основания, полуширина, высота, размах высоты, сколько раз растёт за цикл, фаза, наклон кончика
+  const tongues = [
+    { x: 10, w: 3.6, h: 14, grow: 2.5, beats: 1, phase: 0, lean: 1.6 },
+    { x: 6.6, w: 2.5, h: 9, grow: 2.5, beats: 2, phase: 0.35, lean: -1.4 },
+    { x: 13.4, w: 2.5, h: 9.5, grow: 2.5, beats: 2, phase: 0.8, lean: 1.3 },
+    { x: 8.4, w: 1.8, h: 6, grow: 2, beats: 1, phase: 0.55, lean: -1 },
+    { x: 11.8, w: 1.8, h: 6.5, grow: 2, beats: 1, phase: 0.15, lean: 1 },
   ];
-  flames.forEach((tongues, i) => {
+  // свои цвета огня: красный и оранжевый палитры отдают в розовый, а пламя — жаркое
+  const FIRE = { core: '#fff4c8', yellow: C.yellow, orange: '#f28a3a', red: '#d0472c', outline: '#5e2526' };
+  const heatColor = (heat) => (heat > 0.66 ? FIRE.core : heat > 0.44 ? FIRE.yellow : heat > 0.2 ? FIRE.orange : FIRE.red);
+  const stone = (fr, x, y, w) => {
+    fr.rect(x, y, w, 2, C.slate);
+    fr.rect(x, y, w - 1, 1, C.silver);
+  };
+  for (let i = 0; i < N; i++) {
     const fr = s.frame(i);
-    for (const [x, y] of [[2, 14], [5, 15], [10, 15], [13, 14]]) fr.rect(x, y, 2, 1, C.slate);
-    fr.line(3, 13, 12, 11, C.bark);
-    fr.line(3, 11, 12, 13, C.barkDark);
-    for (const [cx, cy, rx, ry] of tongues) {
-      fr.ellipse(cx, cy + ry / 2, rx, ry, (nx, ny) => (Math.hypot(nx, ny * 0.8) < 0.45 ? C.white : ny < -0.3 ? C.red : ny < 0.3 ? C.orange : C.yellow));
+    const phase = i / N;
+    const rand = rng(101 + i * 7);
+    // задние камни прячутся за огнём
+    for (const [x, w] of [[4, 3], [8, 4], [13, 3]]) stone(fr, x, 18, w);
+    // пламя: жар — наибольший из языков, по нему и цвет
+    const heat = (x, y) => {
+      let best = 0;
+      for (const t of tongues) {
+        const wave = Math.sin(2 * Math.PI * (phase * t.beats + t.phase));
+        const height = t.h + t.grow * wave;
+        const along = (base - y) / height;
+        if (along < 0 || along > 1) continue;
+        const lean = t.lean * Math.sin(2 * Math.PI * (phase + t.phase));
+        const center = t.x + lean * along ** 1.5;
+        const width = t.w * Math.pow(1 - along, 0.75);
+        const h = (1 - Math.abs(x + 0.5 - center) / width) * Math.sqrt(1 - along);
+        best = Math.max(best, h);
+      }
+      return best;
+    };
+    for (let y = 0; y <= base; y++)
+      for (let x = 0; x < W; x++) {
+        const h = heat(x, y);
+        if (h > 0) fr.set(x, y, heatColor(h));
+      }
+    // лепестки огня отрываются над кончиком среднего языка, поднимаются и тают
+    for (const offset of [0, 0.5]) {
+      const life = (phase * 2 + offset) % 1;
+      if (life < 0.15 || life > 0.8) continue;
+      const top = base - (tongues[0].h + tongues[0].grow * Math.sin(2 * Math.PI * phase));
+      const y = top - 2 - life * 5;
+      const x = 10 + Math.sin(2 * Math.PI * (life + offset)) * 1.5;
+      if (life > 0.55) fr.set(x, y, FIRE.red);
+      else {
+        fr.set(x, y, life < 0.35 ? FIRE.yellow : FIRE.orange);
+        fr.set(x, y + 1, FIRE.orange);
+      }
     }
-    fr.outline(C.plum);
-  });
+    // угли под огнём перемигиваются
+    for (let x = 5; x <= 14; x++) {
+      const glow = rand();
+      fr.set(x, 20, glow > 0.7 ? FIRE.yellow : glow > 0.3 ? FIRE.orange : FIRE.red);
+      if (x > 6 && x < 13) fr.set(x, 21, rand() > 0.5 ? FIRE.red : FIRE.orange);
+    }
+    // поленья крест-накрест, концы светлые, в огне — тлеют
+    fr.line(3, 22, 15, 18, C.bark);
+    fr.line(3, 23, 15, 19, C.barkDark);
+    fr.line(4, 18, 16, 22, C.bark);
+    fr.line(4, 19, 16, 23, C.barkDark);
+    for (const [x, y] of [[3, 22], [16, 22]]) fr.rect(x, y, 1, 2, C.barkLight);
+    for (const [x, y] of [[8, 20], [11, 20]]) fr.set(x, y, rand() > 0.4 ? FIRE.orange : FIRE.yellow);
+    // передние камни
+    for (const [x, y, w] of [[1, 21, 3], [16, 21, 3], [3, 23, 4], [8, 24, 4], [13, 23, 4]]) stone(fr, x, y, w);
+    fr.outline(FIRE.outline);
+  }
   return s.img;
 }
 

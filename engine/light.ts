@@ -3,7 +3,7 @@ import * as THREE from 'three';
 // Свет кадра. Мир рисуется материалами без освещения (тени и объём «запечены» в картинки),
 // поэтому настроение задаётся двумя приёмами:
 // - цветокоррекция каждого пикселя прямо в шейдерах (через CustomToneMapping Three.js — без лишнего прохода);
-// - экранный засвет: тёплое солнце с края кадра, его лучи и мягкое затемнение углов — один прозрачный слой поверх сцены.
+// - мягкое затемнение углов — один прозрачный слой поверх сцены.
 
 /** Цветокоррекция. Все цвета и числа — в привычном пространстве sRGB, как в редакторе картинок. */
 export interface ColorGrade {
@@ -25,14 +25,11 @@ export interface ColorGrade {
   readonly highlights: { readonly tint: string; readonly amount: number };
 }
 
-/** Экранный засвет: солнце за краем кадра, его лучи и затемнение углов. */
-export interface ScreenLightOptions {
-  /** Где солнце: доли кадра от левого нижнего угла, может быть за краем. Радиус — в долях высоты кадра. */
-  readonly sun: { readonly x: number; readonly y: number; readonly radius: number; readonly color: string; readonly strength: number };
-  /** Лучи от солнца: сила, докуда достают (в долях высоты кадра) и как быстро колышутся (0 — замерли). */
-  readonly rays: { readonly strength: number; readonly length: number; readonly sway: number };
-  /** Затемнение углов: с какого расстояния от центра (0 — центр, 1 — угол) начинается и насколько тёмное в углу. */
-  readonly vignette: { readonly color: string; readonly from: number; readonly strength: number };
+/** Затемнение углов: с какого расстояния от центра (0 — центр, 1 — угол) начинается, цвет и насколько тёмное в углу. */
+export interface VignetteOptions {
+  readonly color: string;
+  readonly from: number;
+  readonly strength: number;
 }
 
 /** Цвет из «#rrggbb» как есть, без перевода в линейное пространство: шейдеры ниже работают в sRGB. */
@@ -109,7 +106,7 @@ export function applyColorGrade(renderer: THREE.WebGLRenderer, grade: ColorGrade
 
 const TONEMAPPING_CHUNK = THREE.ShaderChunk.tonemapping_pars_fragment;
 
-const overlayVertex = /* glsl */ `
+const vignetteVertex = /* glsl */ `
   varying vec2 vUv;
   void main() {
     vUv = position.xy * 0.5 + 0.5;
@@ -117,83 +114,37 @@ const overlayVertex = /* glsl */ `
   }
 `;
 
-// Выход — с заранее умноженной прозрачностью: засвет солнца прибавляется к кадру, затемнение — накрывает его.
-const overlayFragment = /* glsl */ `
-  uniform float aspect;
-  uniform vec2 sunPosition;
-  uniform float sunRadius;
-  uniform vec3 sunColor;
-  uniform float sunStrength;
-  uniform float rayStrength;
-  uniform float rayLength;
-  uniform float time;
+const vignetteFragment = /* glsl */ `
   uniform vec3 vignetteColor;
   uniform float vignetteFrom;
   uniform float vignetteStrength;
   varying vec2 vUv;
   void main() {
-    vec2 toSun = (vUv - sunPosition) * vec2(aspect, 1.0);
-    float sun = 1.0 - clamp(length(toSun) / sunRadius, 0.0, 1.0);
-    // лучи — полосы по углу от солнца: два синуса разной частоты дают неровные, медленно плывущие полосы
-    float angle = atan(toSun.y, toSun.x);
-    float rays = smoothstep(0.35, 1.0, (0.5 + 0.5 * sin(angle * 23.0 + time * 0.7)) * (0.5 + 0.5 * sin(angle * 37.0 - time * 0.45)) * 1.6);
-    float reach = 1.0 - clamp(length(toSun) / rayLength, 0.0, 1.0);
-    vec3 glow = sunColor * (sun * sun * sunStrength + rays * reach * reach * rayStrength);
     float corner = length((vUv - 0.5) * 2.0) / sqrt(2.0);
-    float shade = smoothstep(vignetteFrom, 1.0, corner) * vignetteStrength;
-    gl_FragColor = vec4(glow * (1.0 - shade) + vignetteColor * shade, shade);
+    gl_FragColor = vec4(vignetteColor, smoothstep(vignetteFrom, 1.0, corner) * vignetteStrength);
   }
 `;
 
-/** Экранный засвет: прозрачный слой во весь кадр, рисуется последним. Добавить `mesh` в сцену. */
-export class ScreenLight {
-  readonly mesh: THREE.Mesh;
-  private readonly aspect: THREE.IUniform<number> = { value: 1 };
-  private readonly time: THREE.IUniform<number> = { value: 0 };
-  private readonly sway: number;
-
-  constructor(options: ScreenLightOptions) {
-    // один треугольник, который накрывает весь экран
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
-    this.sway = options.rays.sway;
-    const material = new THREE.ShaderMaterial({
-      vertexShader: overlayVertex,
-      fragmentShader: overlayFragment,
-      uniforms: {
-        aspect: this.aspect,
-        sunPosition: { value: new THREE.Vector2(options.sun.x, options.sun.y) },
-        sunRadius: { value: options.sun.radius },
-        sunColor: { value: new THREE.Vector3(...srgb(options.sun.color)) },
-        sunStrength: { value: options.sun.strength },
-        rayStrength: { value: options.rays.strength },
-        rayLength: { value: options.rays.length },
-        time: this.time,
-        vignetteColor: { value: new THREE.Vector3(...srgb(options.vignette.color)) },
-        vignetteFrom: { value: options.vignette.from },
-        vignetteStrength: { value: options.vignette.strength },
-      },
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      toneMapped: false,
-      blending: THREE.CustomBlending,
-      blendSrc: THREE.OneFactor,
-      blendDst: THREE.OneMinusSrcAlphaFactor,
-    });
-    this.mesh = new THREE.Mesh(geometry, material);
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = Number.MAX_SAFE_INTEGER;
-  }
-
-  /** Отношение ширины кадра к высоте — чтобы пятно солнца было круглым. */
-  setAspect(aspect: number): void {
-    this.aspect.value = aspect;
-  }
-
-  /** Лучи понемногу колышутся. */
-  update(dt: number): void {
-    // время по кругу: синусам всё равно, а точность float в шейдере не падает
-    this.time.value = (this.time.value + dt * this.sway) % 1000;
-  }
+/** Затемнение углов: прозрачный слой во весь кадр, рисуется последним. Добавить в сцену. */
+export function createVignette(options: VignetteOptions): THREE.Mesh {
+  // один треугольник, который накрывает весь экран
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
+  const material = new THREE.ShaderMaterial({
+    vertexShader: vignetteVertex,
+    fragmentShader: vignetteFragment,
+    uniforms: {
+      vignetteColor: { value: new THREE.Vector3(...srgb(options.color)) },
+      vignetteFrom: { value: options.from },
+      vignetteStrength: { value: options.strength },
+    },
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = Number.MAX_SAFE_INTEGER;
+  return mesh;
 }

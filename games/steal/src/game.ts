@@ -6,7 +6,7 @@ import { renderSongGradually } from '@engine/chiptune';
 import { formatNumber } from '@engine/format';
 import { Input } from '@engine/input';
 import { LabelLayer, type Label } from '@engine/labels';
-import { applyColorGrade, gradeColor, ScreenLight } from '@engine/light';
+import { applyColorGrade, createVignette, gradeColor } from '@engine/light';
 import { isDemoBuild, type Platform, type ShopPurchase } from '@engine/platform/platform';
 import { Rng } from '@engine/rng';
 import type { SpriteSheet, SpriteSheetDef } from '@engine/sprite';
@@ -126,7 +126,7 @@ const SHEETS = {
   // пасхалки
   hut: sheet('hut', 40, 52, 13),
   bear: sheet('bear', 28, 28),
-  campfire: sheet('campfire', 16, 16),
+  campfire: sheet('campfire', 20, 26),
   well: sheet('well', 24, 28),
   outhouse: sheet('outhouse', 18, 30),
   fairyStone: sheet('fairy-stone', 28, 20),
@@ -167,7 +167,6 @@ export class Game implements GameContext {
   private readonly platform: Platform;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly cameraRig = new FollowCamera(CAMERA);
-  private readonly screenLight = new ScreenLight(LIGHT.screen);
   private readonly input: Input;
   private readonly characterSheets: ReadonlyMap<string, SpriteSheet>;
   private readonly heroSheets: Readonly<Record<HeroId, SpriteSheet>>;
@@ -262,7 +261,7 @@ export class Game implements GameContext {
     const sky = gradeColor(LIGHT.grade, SKY_COLOR);
     this.scene.background = new THREE.Color(sky);
     this.scene.fog = new THREE.Fog(sky, FOG.near, FOG.far);
-    this.scene.add(this.screenLight.mesh);
+    this.scene.add(createVignette(LIGHT.vignette));
     this.scene.add(new THREE.HemisphereLight('#ffffff', '#6a8f5a', 2.2));
     const sun = new THREE.DirectionalLight('#fff1d6', 1.8);
     sun.position.set(-4, 10, 6);
@@ -358,7 +357,6 @@ export class Game implements GameContext {
 
   private update(dt: number): void {
     this.time += dt;
-    this.screenLight.update(dt);
     const zoom = this.input.consumeZoom();
     if (zoom) this.cameraRig.zoom(zoom);
 
@@ -877,7 +875,6 @@ export class Game implements GameContext {
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(width, height);
     this.cameraRig.setAspect(width / height);
-    this.screenLight.setAspect(width / height);
   }
 
   /** Для отладки из консоли браузера (только в режиме разработки). */

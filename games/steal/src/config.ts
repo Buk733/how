@@ -14,23 +14,20 @@ export const FOG = { near: 34, far: 80 } as const;
 
 /**
  * Свет кадра (`engine/light.ts`): тёплое солнце вместо холодной картинки (отзыв владельца — «глаз не радуется»).
- * Цветокоррекция действует на весь мир, небо и туман; засвет и затемнение углов — слой поверх сцены.
+ * Цветокоррекция действует на весь мир, небо и туман; затемнение углов — слой поверх сцены.
+ * Тепло владелец потом попросил сбавить на 10% (было «слишком желтовато») — не разогревать обратно.
  */
 export const LIGHT = {
   grade: {
     exposure: 1.03,
-    balance: [1.05, 1, 0.88],
-    greens: { red: 0.42, blue: 0.3 },
+    balance: [1.045, 1, 0.89],
+    greens: { red: 0.38, blue: 0.27 },
     saturation: 1.15,
     contrast: 0.12,
     shadows: { tint: '#8a6a8e', amount: 0.35 },
-    highlights: { tint: '#ffd58a', amount: 0.12 },
+    highlights: { tint: '#ffd58a', amount: 0.11 },
   },
-  screen: {
-    sun: { x: 0.3, y: 1.25, radius: 1, color: '#ffc768', strength: 0.25 },
-    rays: { strength: 0.14, length: 1.6, sway: 0.3 },
-    vignette: { color: '#3a1d0e', from: 0.6, strength: 0.3 },
-  },
+  vignette: { color: '#3a1d0e', from: 0.6, strength: 0.3 },
 } as const;
 
 export const CAMERA = {
