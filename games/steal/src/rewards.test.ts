@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { Rng } from '@engine/rng';
 import { caseOdds, casePayment, isFirstCase, payForCase, rarityOdds, rollCase } from './cases';
-import { REWARDS, UPGRADER } from './config';
+import { LEVEL_REWARDS, REWARDS, UPGRADER } from './config';
 import { CASES, caseById, FREE_CASE_ID } from './data/cases';
 import { CHARACTERS, characterById } from './data/characters';
-import { unitPrice } from './economy';
+import { shelfValue, unitPrice } from './economy';
 import { tierOf } from './neighbors';
 import { createSave } from './save';
 import { rollUpgrade, upgradeChance, upgradeTargets } from './upgrader';
@@ -106,10 +106,13 @@ describe('колесо удачи', () => {
     wheelChances().forEach((chance, i) => expect(counts[i] / N).toBeCloseTo(chance, 1));
   });
 
-  it('денежный приз растёт с доходом, но не меньше минимума', () => {
-    const prize = { minutes: 2, minCoins: 300 };
-    expect(coinsPrize(prize, 0)).toBe(300);
-    expect(coinsPrize(prize, 100)).toBe(12000);
+  it('денежный приз — доля стоимости полки: новичку — от минимума, и всегда меньше полки', () => {
+    const save = createSave();
+    expect(coinsPrize({ share: 0.4 }, save)).toBe(LEVEL_REWARDS.minShelf * 0.4);
+    save.slots[0] = { id: 'dark-drun', gold: false, stored: 0 };
+    save.slots[1] = { id: 'baba-chai', gold: false, stored: 0 };
+    expect(coinsPrize({ share: 0.4 }, save)).toBe(Math.round(shelfValue(save) * 0.4));
+    for (const { prize } of WHEEL) if (prize.kind === 'coins') expect(coinsPrize(prize, save)).toBeLessThan(shelfValue(save));
   });
 
   it('бесплатный спин — сразу, потом через таймер; за рекламу — не больше лимита в день', () => {

@@ -368,7 +368,7 @@ export const tr: Messages = {
     products: {
       income_x2: { name: 'Kalıcı ×2 gelir', description: 'Tüm karakterler iki kat kazandırır — yeniden doğuştan sonra da' },
       no_ads: { name: 'Reklamsız', description: 'Tam ekran reklam ve banner yok. Ödüllü videolar kalır — yalnızca istersen' },
-      coin_chest: { name: 'Para sandığı', description: 'Yarım saatlik gelirin hemen' },
+      coin_chest: { name: 'Para sandığı', description: 'Banktaki tüm karakterlerinin değeri kadar para' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} para!`,
     grantedItem: (icon: string, name: string) => `${icon} ${name}!`,

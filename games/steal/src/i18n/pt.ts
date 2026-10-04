@@ -367,7 +367,7 @@ export const pt: Messages = {
     products: {
       income_x2: { name: 'Renda ×2 para sempre', description: 'Todos os personagens rendem o dobro — inclusive depois de renascer' },
       no_ads: { name: 'Sem anúncios', description: 'Sem anúncios em tela cheia nem banner. Vídeos com prêmio continuam — só se quiser' },
-      coin_chest: { name: 'Baú de moedas', description: 'Meia hora da sua renda na hora' },
+      coin_chest: { name: 'Baú de moedas', description: 'Tantas moedas quanto valem todos os seus personagens no banco' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} moedas!`,
     grantedItem: (icon: string, name: string) => `${icon} ${name}!`,

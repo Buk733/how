@@ -4,7 +4,8 @@ import type { SaveData } from './save';
 import { coinsPrize, dayKey, startBoost } from './wheel';
 
 export type DailyPrize =
-  | { readonly kind: 'coins'; readonly minutes: number; readonly minCoins: number }
+  /** Монеты: доля стоимости полки игрока (levelReward). */
+  | { readonly kind: 'coins'; readonly share: number }
   | { readonly kind: 'key'; readonly caseId: string }
   | { readonly kind: 'boost'; readonly minutes: number };
 
@@ -17,15 +18,15 @@ export interface DailyReward {
 
 /**
  * Награда за каждый день серии. Седьмой — самый ценный, дальше календарь идёт по кругу.
- * Монеты — минуты дохода игрока, но не меньше minCoins.
+ * Монеты — доля стоимости полки игрока: растут вместе с ним, но даже «гора монет» меньше полки.
  */
 const REWARDS_BY_DAY: readonly Omit<DailyReward, 'label'>[] = [
-  { prize: { kind: 'coins', minutes: 3, minCoins: 300 }, icon: '💰' },
+  { prize: { kind: 'coins', share: 0.2 }, icon: '💰' },
   { prize: { kind: 'key', caseId: 'bath' }, icon: '🪣' },
-  { prize: { kind: 'coins', minutes: 10, minCoins: 1000 }, icon: '💰' },
+  { prize: { kind: 'coins', share: 0.35 }, icon: '💰' },
   { prize: { kind: 'boost', minutes: 10 }, icon: '⚡' },
   { prize: { kind: 'key', caseId: 'meme' }, icon: '🎭' },
-  { prize: { kind: 'coins', minutes: 30, minCoins: 3000 }, icon: '💰' },
+  { prize: { kind: 'coins', share: 0.6 }, icon: '💰' },
   { prize: { kind: 'key', caseId: 'gold' }, icon: '👑' },
 ];
 
@@ -60,22 +61,22 @@ export function dailyState(save: SaveData, now: number): DailyState {
   return { available: true, streak, index: (streak - 1) % DAILY.length, nextIn };
 }
 
-/** Сколько монет даст денежная награда при таком доходе. */
-export function dailyCoins(prize: DailyPrize, incomePerSecond: number): number {
-  return prize.kind === 'coins' ? coinsPrize(prize, incomePerSecond) : 0;
+/** Сколько монет даст денежная награда игроку на его уровне. */
+export function dailyCoins(prize: DailyPrize, save: SaveData): number {
+  return prize.kind === 'coins' ? coinsPrize(prize, save) : 0;
 }
 
 /**
  * Забирает сегодняшнюю награду: выдаёт её и продлевает серию.
  * Возвращает, что выдано (и сколько монет), или null, если сегодня уже забирали.
  */
-export function claimDaily(save: SaveData, now: number, incomePerSecond: number): { reward: DailyReward; coins: number } | null {
+export function claimDaily(save: SaveData, now: number): { reward: DailyReward; coins: number } | null {
   const state = dailyState(save, now);
   if (!state.available) return null;
   save.daily = { day: dayKey(now), streak: state.streak };
   const reward = DAILY[state.index];
   const { prize } = reward;
-  const coins = dailyCoins(prize, incomePerSecond);
+  const coins = dailyCoins(prize, save);
   if (prize.kind === 'coins') save.coins += coins;
   else if (prize.kind === 'key') save.keys[prize.caseId] = (save.keys[prize.caseId] ?? 0) + 1;
   else startBoost(save, now, prize.minutes);

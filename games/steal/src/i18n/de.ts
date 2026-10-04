@@ -367,7 +367,7 @@ export const de: Messages = {
     products: {
       income_x2: { name: 'Einkommen ×2 für immer', description: 'Alle Figuren bringen doppelt so viel — auch nach der Wiedergeburt' },
       no_ads: { name: 'Keine Werbung', description: 'Keine Vollbildwerbung und kein Banner. Belohnungsvideos bleiben — nur wenn du willst' },
-      coin_chest: { name: 'Münztruhe', description: 'Eine halbe Stunde deines Einkommens sofort' },
+      coin_chest: { name: 'Münztruhe', description: 'So viele Münzen, wie alle deine Figuren auf der Bank wert sind' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} Münzen!`,
     grantedItem: (icon: string, name: string) => `${icon} ${name}!`,

@@ -287,7 +287,7 @@ export class PacingSim {
     for (const box of CASES) while ((save.keys[box.id] ?? 0) > 0) this.openCase(box);
     if (!this.dailyClaimed) {
       this.dailyClaimed = true;
-      const claimed = claimDaily(save, now, totalIncome(save, now));
+      const claimed = claimDaily(save, now);
       if (claimed) save.stats.earned += claimed.coins;
     }
   }
@@ -304,7 +304,7 @@ export class PacingSim {
     const { save } = this;
     this.counts.spins++;
     const prize = WHEEL[rollWheel(this.rng)].prize;
-    if (prize.kind === 'coins') save.coins += coinsPrize(prize, totalIncome(save, this.now));
+    if (prize.kind === 'coins') save.coins += coinsPrize(prize, save);
     else if (prize.kind === 'key') save.keys[prize.caseId] = (save.keys[prize.caseId] ?? 0) + 1;
     else if (prize.kind === 'boost') startBoost(save, this.now);
     else this.reward(characterNearTier(this.rng, CHARACTERS, Math.max(0, playerPower(save.slots))), this.rng.chance(WHEEL_CHARACTER_GOLD));

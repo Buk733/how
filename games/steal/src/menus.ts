@@ -9,7 +9,7 @@ import { HEROES, isHeroId, type HeroId } from './data/heroes';
 import { t } from './i18n';
 import { spriteUrl } from './data/sprites';
 import { RARITIES } from './data/rarity';
-import { sellValue, totalIncome, unitIncome, unitName } from './economy';
+import { sellValue, unitIncome, unitName } from './economy';
 import type { Home, RewardResult } from './home';
 import { characterNearTier, playerPower } from './neighbors';
 import type { OfflineEarnings } from './offline';
@@ -340,7 +340,7 @@ export class Menus {
     const { rng } = this.ctx;
     switch (prize.kind) {
       case 'coins': {
-        const coins = coinsPrize(prize, totalIncome(save, Date.now()));
+        const coins = coinsPrize(prize, save);
         text = t.wheel.coins(icon, formatNumber(coins));
         this.pending = () => {
           save.coins += coins;

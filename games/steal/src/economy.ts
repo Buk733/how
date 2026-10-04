@@ -1,5 +1,5 @@
 // Правила экономики без графики — их легко тестировать.
-import { ECONOMY, GOLD, SHOP } from './config';
+import { ECONOMY, GOLD, LEVEL_REWARDS, SHOP } from './config';
 import { characterById, type CharacterDef } from './data/characters';
 import { INCOME_X2 } from './data/shop';
 import { t } from './i18n';
@@ -111,6 +111,23 @@ export function totalIncome(save: SaveData, now = 0): number {
 /** Доход без ускорителя — с печью, перерождениями и покупкой «Доход ×2»: столько игрок получает обычно (и вне игры). */
 export function steadyIncome(save: SaveData): number {
   return baseIncome(save) * steadyFactor(save);
+}
+
+/** Сколько стоят персонажи на полке по цене дорожки («Голда» — дороже): мерило уровня игрока для наград. */
+export function shelfValue(save: SaveData): number {
+  return save.slots.reduce((sum, slot) => {
+    const unit = slotUnit(slot);
+    return unit ? sum + unitPrice(unit.def, unit.gold) : sum;
+  }, 0);
+}
+
+/**
+ * Награда монетами по уровню игрока: доля стоимости его полки (пока полка дешевле LEVEL_REWARDS.minShelf —
+ * доля от minShelf). Растёт вместе с игроком, а с долей меньше 1 не перепрыгивает ступень: на неё не купить
+ * больше, чем уже стоит полка. Печь, перерождения, покупки и ускоритель на награду не влияют.
+ */
+export function levelReward(save: SaveData, share: number): number {
+  return Math.round(Math.max(shelfValue(save), LEVEL_REWARDS.minShelf) * share);
 }
 
 /** Сколько вернут за персонажа, которого заменили или продали. */

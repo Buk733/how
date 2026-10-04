@@ -1,7 +1,7 @@
 // Покупки за Яны без графики: что даёт товар и как выдать покупку ровно один раз.
 import { SHOP } from './config';
 import { COIN_CHEST, NO_ADS, productById, type ProductDef } from './data/shop';
-import { steadyIncome } from './economy';
+import { levelReward } from './economy';
 import type { SaveData } from './save';
 
 /** Оплаченная покупка: какой товар и её токен на площадке. */
@@ -28,9 +28,9 @@ export function adsDisabled(save: SaveData): boolean {
   return owns(save, NO_ADS);
 }
 
-/** Сколько монет в сундуке: SHOP.chestMinutes минут дохода без ускорителя, но не меньше SHOP.chestMin. */
+/** Сколько монет в сундуке: столько, сколько стоит полка игрока (SHOP.chestShare), — по его уровню. */
 export function chestCoins(save: SaveData): number {
-  return Math.max(SHOP.chestMin, Math.floor(steadyIncome(save) * SHOP.chestMinutes * 60));
+  return levelReward(save, SHOP.chestShare);
 }
 
 /**

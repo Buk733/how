@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ECONOMY, GOLD, UPGRADES } from './config';
+import { ECONOMY, GOLD, LEVEL_REWARDS, SECRET_REWARD, SHOP, UPGRADES } from './config';
 import { CHARACTERS, characterById } from './data/characters';
-import { boostActive, checkPurchase, findSlotFor, sellValue, totalIncome, unitIncome, unitName, unitPrice, unlockCost } from './economy';
+import { DAILY } from './daily';
+import { boostActive, checkPurchase, findSlotFor, levelReward, sellValue, shelfValue, totalIncome, unitIncome, unitName, unitPrice, unlockCost } from './economy';
+import { WHEEL } from './wheel';
 import { createSave } from './save';
 
 const def = (id: string) => {
@@ -111,5 +113,33 @@ describe('экономика', () => {
       const priciestLower = Math.max(...byRarity[i - 1].map((c) => c.price));
       expect(cheapestHigher).toBeGreaterThan(priciestLower);
     }
+  });
+});
+
+describe('награды по уровню игрока', () => {
+  it('стоимость полки — сумма цен персонажей, «Голда» — по своей цене', () => {
+    const save = createSave();
+    expect(shelfValue(save)).toBe(0);
+    save.slots[0] = { id: 'kotost', gold: false, stored: 0 };
+    save.slots[2] = { id: 'hamam', gold: true, stored: 0 };
+    expect(shelfValue(save)).toBe(def('kotost').price + unitPrice(def('hamam'), true));
+  });
+
+  it('награда — доля полки, новичку — от минимальной стоимости полки', () => {
+    const save = createSave();
+    expect(levelReward(save, 0.5)).toBe(LEVEL_REWARDS.minShelf * 0.5);
+    save.slots[0] = { id: 'schoolboy', gold: false, stored: 0 };
+    expect(levelReward(save, 0.5)).toBe(def('schoolboy').price / 2);
+  });
+
+  it('не перепрыгивает ступень: бесплатные награды меньше полки, сундук за Яны — не больше полки', () => {
+    const shares = [
+      ...DAILY.flatMap(({ prize }) => (prize.kind === 'coins' ? [prize.share] : [])),
+      ...WHEEL.flatMap(({ prize }) => (prize.kind === 'coins' ? [prize.share] : [])),
+      SECRET_REWARD.share,
+    ];
+    expect(shares.length).toBeGreaterThan(4);
+    for (const share of shares) expect(share).toBeLessThan(1);
+    expect(SHOP.chestShare).toBeLessThanOrEqual(1);
   });
 });

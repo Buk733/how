@@ -26,7 +26,7 @@ export interface ProductDef {
 export const INCOME_X2: ProductId = 'income_x2';
 /** Без рекламы: нет полноэкранной рекламы и стики-баннера; ролики за награду остаются по желанию. */
 export const NO_ADS: ProductId = 'no_ads';
-/** Сундук монет: SHOP.chestMinutes минут дохода сразу. */
+/** Сундук монет: столько монет, сколько стоит полка игрока (SHOP.chestShare). */
 export const COIN_CHEST: ProductId = 'coin_chest';
 
 export const PRODUCTS: readonly ProductDef[] = (

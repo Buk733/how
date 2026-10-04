@@ -388,7 +388,7 @@ export const ru = {
     products: {
       income_x2: { name: 'Доход ×2 навсегда', description: 'Все персонажи приносят вдвое больше — и после перерождения тоже' },
       no_ads: { name: 'Без рекламы', description: 'Никакой рекламы между делом. Ролики за награду остаются — по желанию' },
-      coin_chest: { name: 'Сундук монет', description: 'Полчаса твоего дохода сразу' },
+      coin_chest: { name: 'Сундук монет', description: 'Столько монет, сколько стоят все твои персонажи на полке' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} монет!`,
     grantedItem: (icon: string, name: string) => `${icon} ${name}!`,

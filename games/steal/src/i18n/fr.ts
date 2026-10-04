@@ -368,7 +368,7 @@ export const fr: Messages = {
     products: {
       income_x2: { name: 'Revenu ×2 pour toujours', description: 'Tous les personnages rapportent deux fois plus, même après une renaissance' },
       no_ads: { name: 'Sans pub', description: 'Plus de pub plein écran ni de bannière. Les vidéos à récompense restent, si tu le veux' },
-      coin_chest: { name: 'Coffre de pièces', description: 'Une demi-heure de revenu tout de suite' },
+      coin_chest: { name: 'Coffre de pièces', description: 'Autant de pièces que valent tous tes personnages sur le banc' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} pièces\u00a0!`,
     grantedItem: (icon: string, name: string) => `${icon} ${name}\u00a0!`,

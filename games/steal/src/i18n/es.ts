@@ -367,7 +367,7 @@ export const es: Messages = {
     products: {
       income_x2: { name: 'Ingresos ×2 para siempre', description: 'Todos los personajes ganan el doble, también después de renacer' },
       no_ads: { name: 'Sin anuncios', description: 'Sin anuncios a pantalla completa ni banner. Los vídeos con premio siguen, solo si quieres' },
-      coin_chest: { name: 'Cofre de monedas', description: 'Media hora de tus ingresos al instante' },
+      coin_chest: { name: 'Cofre de monedas', description: 'Tantas monedas como valen todos tus personajes del banco' },
     },
     granted: (icon: string, coins: string) => `¡${icon} +${coins} monedas!`,
     grantedItem: (icon: string, name: string) => `¡${icon} ${name}!`,

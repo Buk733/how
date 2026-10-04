@@ -8,7 +8,6 @@ import { caseById } from './data/cases';
 import { CHARACTERS } from './data/characters';
 import { RARITIES } from './data/rarity';
 import { SECRETS } from './data/secrets';
-import { totalIncome } from './economy';
 import { formatAway, formatMultiplier, formatPercent, t } from './i18n';
 import type { OfflineEarnings } from './offline';
 import { canRebirth, rebirthCost, rebirthMultiplier } from './rebirth';
@@ -128,13 +127,12 @@ export class RetentionMenus {
     const { save } = this.ctx;
     const now = Date.now();
     const state = dailyState(save, now);
-    const income = totalIncome(save, now);
     // клетки до сегодняшней в этом круге календаря — забраны
     const cells: DailyCellView[] = DAILY.map((reward, i) => ({
       day: i + 1,
       icon: reward.icon,
       label: reward.label,
-      amount: reward.prize.kind === 'coins' ? `💰 ${formatNumber(dailyCoins(reward.prize, income))}` : '',
+      amount: reward.prize.kind === 'coins' ? `💰 ${formatNumber(dailyCoins(reward.prize, save))}` : '',
       state: i < state.index || (i === state.index && !state.available) ? 'claimed' : i === state.index ? 'today' : 'future',
     }));
     return { cells, available: state.available, streak: state.streak, nextIn: state.nextIn };
@@ -143,7 +141,7 @@ export class RetentionMenus {
   private claimDaily(): void {
     const { save } = this.ctx;
     const now = Date.now();
-    const claimed = claimDaily(save, now, totalIncome(save, now));
+    const claimed = claimDaily(save, now);
     if (!claimed) {
       this.ctx.audio.blip('error');
       return;

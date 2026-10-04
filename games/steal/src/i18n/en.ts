@@ -367,7 +367,7 @@ export const en: Messages = {
     products: {
       income_x2: { name: 'Income ×2 forever', description: 'All characters earn twice as much — even after a rebirth' },
       no_ads: { name: 'No ads', description: 'No fullscreen ads or banner. Reward videos stay — only if you want them' },
-      coin_chest: { name: 'Coin chest', description: 'Half an hour of your income right away' },
+      coin_chest: { name: 'Coin chest', description: 'As many coins as all your characters on the bench are worth' },
     },
     granted: (icon: string, coins: string) => `${icon} +${coins} coins!`,
     grantedItem: (icon: string, name: string) => `${icon} ${name}!`,

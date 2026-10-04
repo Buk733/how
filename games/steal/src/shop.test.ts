@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { LEADERBOARD, OFFLINE, SHOP } from './config';
+import { LEADERBOARD, LEVEL_REWARDS, OFFLINE, SHOP } from './config';
 import { PRODUCTS } from './data/shop';
-import { steadyIncome, totalIncome } from './economy';
+import { shelfValue, steadyIncome, totalIncome } from './economy';
 import { offlineEarnings } from './offline';
 import { scoreToSend } from './records';
 import { createSave } from './save';
@@ -32,12 +32,18 @@ describe('товары за Яны', () => {
     expect(needsConsume('no_ads')).toBe(false);
   });
 
-  it('сундук монет: полчаса дохода, но не меньше минимума; один токен — одна выдача', () => {
+  it('сундук монет: столько, сколько стоит полка (новичку — от минимума); один токен — одна выдача', () => {
     const empty = createSave();
-    expect(chestCoins(empty)).toBe(SHOP.chestMin);
+    expect(chestCoins(empty)).toBe(LEVEL_REWARDS.minShelf * SHOP.chestShare);
     const save = withIncome();
+    save.slots[1] = { id: 'hamam', gold: false, stored: 0 };
     save.coins = 0;
-    const coins = Math.max(SHOP.chestMin, 10 * SHOP.chestMinutes * 60);
+    const coins = shelfValue(save) * SHOP.chestShare;
+    expect(coins).toBe(100_600);
+    // ускоритель, печь и покупка «Доход ×2» на сундук не влияют — только уровень игрока
+    save.boostUntil = Date.now() + 60_000;
+    save.upgrades.stove = 5;
+    save.purchases.owned.push('income_x2');
     expect(grantPurchase(save, { productId: 'coin_chest', token: 't1' })).toMatchObject({ kind: 'granted', coins });
     expect(save.coins).toBe(coins);
     // сохранение прошло, а «использовать» покупку не удалось: при следующем запуске она придёт снова

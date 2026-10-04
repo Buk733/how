@@ -7,7 +7,6 @@ import { Campfire } from './campfire';
 import { AUDIO, CARPET } from './config';
 import type { Action, GameContext } from './context';
 import { SECRETS, type SecretDef } from './data/secrets';
-import { totalIncome } from './economy';
 import { SpeechBubble } from './entities/bubble';
 import { t } from './i18n';
 import { CAR_HEADING, GARDEN_PATH_X, PIER_PATH_X, SPOTS, TRAIL } from './layout';
@@ -253,7 +252,7 @@ export class Landmarks {
     if (landmark.busy > 0) return;
     landmark.run();
     const { save } = this.ctx;
-    const reward = findSecret(save, landmark.secret.id, totalIncome(save));
+    const reward = findSecret(save, landmark.secret.id);
     if (reward === null) return;
     const at = new THREE.Vector3(landmark.spot.x, 0, landmark.spot.z);
     this.ctx.audio.blip('secret');
